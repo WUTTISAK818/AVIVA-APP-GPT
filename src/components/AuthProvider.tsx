@@ -9,19 +9,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const pathname = usePathname();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session && pathname !== "/login") {
-        router.replace("/login");
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session && pathname !== "/login") {
-        router.replace("/login");
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    // Auth temporarily disabled for demo/testing
   }, [pathname, router]);
 
   return <>{children}</>;
