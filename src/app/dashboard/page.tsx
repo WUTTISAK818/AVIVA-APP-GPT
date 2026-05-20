@@ -1,0 +1,184 @@
+"use client";
+
+import { Bell, Home, DollarSign, Users, Package } from "lucide-react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import KPICard from "@/components/KPICard";
+import AIInsightPanel from "@/components/AIInsightPanel";
+import ProgressBar from "@/components/ProgressBar";
+import SectionHeader from "@/components/SectionHeader";
+import GlassCard from "@/components/GlassCard";
+import {
+  dashboardKPIs,
+  revenueData,
+  aiInsights,
+} from "@/lib/mock-data";
+
+function formatMillions(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  return `${(n / 1_000).toFixed(0)}K`;
+}
+
+function formatDate() {
+  return new Date().toLocaleDateString("th-TH", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+export default function DashboardPage() {
+  const selloutPct = Math.round(
+    (dashboardKPIs.soldUnits / dashboardKPIs.totalUnits) * 100
+  );
+
+  return (
+    <div className="min-h-screen bg-aviva-bg">
+      {/* Header */}
+      <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
+        <div className="flex items-center justify-between max-w-lg mx-auto">
+          <div>
+            <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
+            <p className="text-xs text-aviva-secondary mt-0.5">{formatDate()}</p>
+          </div>
+          <button className="relative p-2 rounded-full bg-aviva-card border border-aviva-gold/10">
+            <Bell size={18} className="text-aviva-secondary" />
+            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-aviva-gold" />
+          </button>
+        </div>
+      </div>
+
+      <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
+        {/* KPI Grid */}
+        <div>
+          <SectionHeader title="ภาพรวมโครงการ" subtitle="อัปเดตแบบ Real-time" />
+          <div className="grid grid-cols-2 gap-3">
+            <KPICard
+              icon={Home}
+              label="ยูนิตทั้งหมด"
+              value={`${dashboardKPIs.totalUnits}`}
+            />
+            <KPICard
+              icon={Users}
+              label="ขายแล้ว"
+              value={`${dashboardKPIs.soldUnits}`}
+              change={dashboardKPIs.soldChange}
+              highlight
+            />
+            <KPICard
+              icon={Package}
+              label="ว่างอยู่"
+              value={`${dashboardKPIs.available}`}
+            />
+            <KPICard
+              icon={DollarSign}
+              label="รายได้รวม"
+              value={`฿${formatMillions(dashboardKPIs.revenue)}`}
+              change={dashboardKPIs.revenueChange}
+            />
+          </div>
+        </div>
+
+        {/* Revenue Chart */}
+        <GlassCard className="p-4">
+          <SectionHeader
+            title="รายได้รายเดือน"
+            subtitle="หน่วย: ล้านบาท"
+          />
+          <div className="h-40">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={revenueData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="month"
+                  tick={{ fill: "#D1D5DB", fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "#D1D5DB", fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#17332D",
+                    border: "1px solid #D4AF37",
+                    borderRadius: "8px",
+                    color: "#fff",
+                    fontSize: "12px",
+                  }}
+                  formatter={(val) => [`฿${val}M`, "รายได้"]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#D4AF37"
+                  strokeWidth={2}
+                  fill="url(#goldGrad)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </GlassCard>
+
+        {/* Sellout Progress */}
+        <GlassCard className="p-4">
+          <SectionHeader
+            title="ความคืบหน้าการขาย"
+            subtitle={`คาดว่าจะขายหมด: ${dashboardKPIs.selloutForecast}`}
+          />
+          <ProgressBar
+            label={`ขายแล้ว ${dashboardKPIs.soldUnits} / ${dashboardKPIs.totalUnits} ยูนิต`}
+            value={selloutPct}
+          />
+          <div className="flex items-center justify-between mt-3">
+            <div className="text-center">
+              <p className="text-lg font-bold text-aviva-gold">{selloutPct}%</p>
+              <p className="text-xs text-aviva-secondary">ขายแล้ว</p>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-aviva-text">{dashboardKPIs.available}</p>
+              <p className="text-xs text-aviva-secondary">ยูนิตว่าง</p>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-aviva-text">{dashboardKPIs.constructionProgress}%</p>
+              <p className="text-xs text-aviva-secondary">ก่อสร้างแล้ว</p>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-green-400">
+                +{dashboardKPIs.cashflowChange}%
+              </p>
+              <p className="text-xs text-aviva-secondary">Cashflow</p>
+            </div>
+          </div>
+        </GlassCard>
+
+        {/* AI Insights */}
+        <div>
+          <SectionHeader
+            title="AI Executive Insights"
+            subtitle="วิเคราะห์โดย AVIVA AI"
+          />
+          <div className="space-y-3">
+            {aiInsights.slice(0, 3).map((insight) => (
+              <AIInsightPanel key={insight.id} {...insight} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
