@@ -4,19 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, Building2, TrendingUp,
-  Sparkles, Megaphone, HeartHandshake, FolderOpen,
+  Sparkles, BookOpen, UserCheck, FolderOpen,
 } from "lucide-react";
 import clsx from "clsx";
 
 const navItems = [
-  { href: "/dashboard",   label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/crm",         label: "CRM",         icon: Users },
-  { href: "/construction",label: "ก่อสร้าง",    icon: Building2 },
-  { href: "/finance",     label: "การเงิน",     icon: TrendingUp },
-  { href: "/marketing",   label: "Marketing",   icon: Megaphone },
-  { href: "/after-sales", label: "After Sales", icon: HeartHandshake },
-  { href: "/documents",   label: "เอกสาร",     icon: FolderOpen },
-  { href: "/ai",          label: "AI",          icon: Sparkles },
+  { href: "/dashboard",   label: "บริหาร",   icon: LayoutDashboard },
+  { href: "/crm",         label: "ขาย",      icon: Users },
+  { href: "/construction",label: "ก่อสร้าง", icon: Building2 },
+  { href: "/finance",     label: "การเงิน",  icon: TrendingUp },
+  { href: "/accounting",  label: "บัญชี",    icon: BookOpen },
+  { href: "/hr",          label: "บุคคล",    icon: UserCheck },
+  { href: "/documents",   label: "เอกสาร",   icon: FolderOpen },
+  { href: "/ai",          label: "AI",        icon: Sparkles },
 ];
 
 export default function BottomNav() {

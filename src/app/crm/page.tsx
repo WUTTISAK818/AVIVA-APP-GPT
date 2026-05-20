@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Star, Phone, Plus } from "lucide-react";
+import { Search, Star, Phone, Plus, X } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -29,6 +29,8 @@ const sourceColor: Record<string, string> = {
   Referral: "bg-purple-500/20 text-purple-400",
 };
 
+const SOURCES = ["Facebook", "TikTok", "Google", "Referral", "Walk-in", "อื่นๆ"];
+
 function scoreColor(score: number) {
   if (score >= 80) return "text-green-400";
   if (score >= 60) return "text-yellow-400";
@@ -39,13 +41,26 @@ function formatBudget(n: number) {
   return `฿${(n / 1_000_000).toFixed(1)}M`;
 }
 
+const emptyForm = {
+  customer_name: "",
+  phone: "",
+  budget: "",
+  source: "Facebook",
+  status: "New Lead" as LeadStatus,
+  notes: "",
+};
+
 export default function CRMPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeStage, setActiveStage] = useState<LeadStatus>("New Lead");
   const [search, setSearch] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
-  useEffect(() => {
+  const fetchLeads = () => {
     supabase
       .from("leads")
       .select("*")
@@ -55,7 +70,9 @@ export default function CRMPage() {
         setLeads((data as Lead[]) ?? []);
         setLoading(false);
       });
-  }, []);
+  };
+
+  useEffect(() => { fetchLeads(); }, []);
 
   const stageCounts = Object.fromEntries(
     pipelineStages.map((s) => [s, leads.filter((l) => l.status === s).length])
@@ -67,6 +84,31 @@ export default function CRMPage() {
       (search === "" || l.customer_name.includes(search))
   );
 
+  const handleSave = async () => {
+    if (!form.customer_name || !form.phone) return;
+    setSaving(true);
+    await supabase.from("leads").insert({
+      customer_name: form.customer_name,
+      phone: form.phone,
+      budget: Number(form.budget) || 0,
+      source: form.source,
+      status: form.status,
+      notes: form.notes,
+      project_id: PROJECT_ID,
+      ai_score: 50,
+    });
+    setSaving(false);
+    setShowModal(false);
+    setForm(emptyForm);
+    fetchLeads();
+  };
+
+  const handleUpdateStatus = async (lead: Lead, newStatus: LeadStatus) => {
+    await supabase.from("leads").update({ status: newStatus }).eq("id", lead.id);
+    setSelectedLead(null);
+    fetchLeads();
+  };
+
   return (
     <div className="min-h-screen bg-aviva-bg">
       {/* Header */}
@@ -74,12 +116,15 @@ export default function CRMPage() {
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-aviva-text">CRM</h1>
+              <h1 className="text-xl font-bold text-aviva-text">CRM · ฝ่ายขาย</h1>
               <p className="text-xs text-aviva-secondary mt-0.5">
-                {loading ? "กำลังโหลด..." : `${leads.length} ราย · Real-time Supabase`}
+                {loading ? "กำลังโหลด..." : `${leads.length} ราย · Real-time`}
               </p>
             </div>
-            <button className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl"
+            >
               <Plus size={14} /> เพิ่ม Lead
             </button>
           </div>
@@ -151,7 +196,11 @@ export default function CRMPage() {
             </GlassCard>
           ) : (
             filtered.map((lead) => (
-              <GlassCard key={lead.id} className="p-4">
+              <GlassCard
+                key={lead.id}
+                className="p-4 cursor-pointer active:scale-[0.98] transition-transform"
+                onClick={() => setSelectedLead(lead)}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -188,6 +237,127 @@ export default function CRMPage() {
           )}
         </div>
       </div>
+
+      {/* Add Lead Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">เพิ่ม Lead ใหม่</h2>
+              <button onClick={() => setShowModal(false)}>
+                <X size={20} className="text-aviva-secondary" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ชื่อลูกค้า *</label>
+                <input
+                  type="text"
+                  value={form.customer_name}
+                  onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
+                  placeholder="ชื่อ-นามสกุล"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">เบอร์โทร *</label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="0XX-XXX-XXXX"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">งบประมาณ (บาท)</label>
+                  <input
+                    type="number"
+                    value={form.budget}
+                    onChange={(e) => setForm({ ...form, budget: e.target.value })}
+                    placeholder="3500000"
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">แหล่งที่มา</label>
+                  <select
+                    value={form.source}
+                    onChange={(e) => setForm({ ...form, source: e.target.value })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60"
+                  >
+                    {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value as LeadStatus })}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60"
+                >
+                  {pipelineStages.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  placeholder="บันทึกเพิ่มเติม..."
+                  rows={2}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleSave}
+              disabled={saving || !form.customer_name || !form.phone}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50"
+            >
+              {saving ? "กำลังบันทึก..." : "บันทึก Lead"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Update Status Modal */}
+      {selectedLead && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-aviva-text">{selectedLead.customer_name}</h2>
+                <p className="text-xs text-aviva-secondary">{selectedLead.phone} · {formatBudget(selectedLead.budget)}</p>
+              </div>
+              <button onClick={() => setSelectedLead(null)}>
+                <X size={20} className="text-aviva-secondary" />
+              </button>
+            </div>
+            <p className="text-xs text-aviva-secondary">เปลี่ยนสถานะ:</p>
+            <div className="grid grid-cols-2 gap-2">
+              {pipelineStages.map((stage) => (
+                <button
+                  key={stage}
+                  onClick={() => handleUpdateStatus(selectedLead, stage)}
+                  className={clsx(
+                    "py-2.5 px-3 rounded-xl text-xs font-medium border transition-all",
+                    selectedLead.status === stage
+                      ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
+                      : "bg-aviva-bg text-aviva-secondary border-aviva-gold/10"
+                  )}
+                >
+                  {stage}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
