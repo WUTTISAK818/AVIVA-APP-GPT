@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Home, DollarSign, Users, Package, LogOut, ClipboardList, Receipt, UserCheck, ShieldAlert } from "lucide-react";
+import { Bell, Home, DollarSign, Users, Package, LogOut, ClipboardList, Receipt, UserCheck, ShieldAlert, Settings } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import KPICard from "@/components/KPICard";
 import AIInsightPanel from "@/components/AIInsightPanel";
@@ -10,6 +10,7 @@ import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { revenueData, aiInsights } from "@/lib/mock-data";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -52,7 +53,7 @@ export default function DashboardPage() {
     pendingApprovals: 0, totalReceipts: 0, employeeCount: 0,
     pendingClaims: 0, totalLeads: 0, pendingDocs: 0,
   });
-  const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; isAdmin: boolean } | null>(null);
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -69,6 +70,7 @@ export default function DashboardPage() {
         setCurrentUser({
           name: user.user_metadata.full_name ?? user.email ?? "ผู้ใช้",
           role: user.user_metadata.department ?? user.user_metadata.role ?? "ผู้ใช้ระบบ",
+          isAdmin: user.user_metadata.role === "admin",
         });
       }
     });
@@ -119,6 +121,11 @@ export default function DashboardPage() {
                 <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
               )}
             </button>
+            {currentUser?.isAdmin && (
+              <Link href="/admin" className="p-2 rounded-full bg-aviva-gold/10 border border-aviva-gold/30">
+                <Settings size={18} className="text-aviva-gold" />
+              </Link>
+            )}
             <button onClick={handleLogout} className="p-2 rounded-full bg-aviva-card border border-aviva-gold/10">
               <LogOut size={18} className="text-aviva-secondary" />
             </button>
