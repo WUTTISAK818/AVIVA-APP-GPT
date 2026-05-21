@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, X, Users, Phone, Mail, Briefcase } from "lucide-react";
+import { Plus, X, Users, Phone, Briefcase, AlertCircle } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -70,12 +70,15 @@ export default function HRPage() {
 
   useEffect(() => { fetchEmployees(); }, []);
 
-  const active = employees.filter(e => e.status === "active");
+  const active = employees.filter((e) => e.status === "active");
   const totalSalary = active.reduce((s, e) => s + Number(e.base_salary), 0);
+  const filtered = filterDept === "ทั้งหมด" ? employees : employees.filter((e) => e.department === filterDept);
 
-  const filtered = filterDept === "ทั้งหมด"
-    ? employees
-    : employees.filter(e => e.department === filterDept);
+  const probationAlerts = active.filter((e) => {
+    if (!e.start_date) return false;
+    const days = Math.floor((Date.now() - new Date(e.start_date).getTime()) / 86400000);
+    return days >= 80 && days <= 180;
+  });
 
   const handleSave = async () => {
     if (!form.full_name) return;
@@ -140,6 +143,27 @@ export default function HRPage() {
             <p className="text-[10px] text-aviva-secondary mt-0.5">ก่อสร้าง</p>
           </GlassCard>
         </div>
+
+        {probationAlerts.length > 0 && (
+          <GlassCard className="p-3 border border-yellow-500/20 bg-yellow-500/5">
+            <div className="flex items-start gap-2">
+              <AlertCircle size={16} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-semibold text-yellow-400">แจ้งเตือน Probation ครบ 80 วัน</p>
+                <div className="mt-1 space-y-0.5">
+                  {probationAlerts.map((e) => {
+                    const days = Math.floor((Date.now() - new Date(e.start_date).getTime()) / 86400000);
+                    return (
+                      <p key={e.id} className="text-[11px] text-yellow-400/80">
+                        {e.full_name} · {e.department} · {days} วัน
+                      </p>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </GlassCard>
+        )}
 
         {/* Dept Filter */}
         <div className="flex gap-2 overflow-x-auto pb-1">

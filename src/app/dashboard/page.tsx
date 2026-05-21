@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Home, DollarSign, Users, Package, LogOut, ClipboardList, Receipt, UserCheck, ShieldAlert } from "lucide-react";
+import { Bell, Home, DollarSign, Users, Package, LogOut, ClipboardList, Receipt, UserCheck, ShieldAlert, Settings } from "lucide-react";
+import Link from "next/link";
+import { useCurrentUser } from "@/lib/user-context";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import KPICard from "@/components/KPICard";
 import AIInsightPanel from "@/components/AIInsightPanel";
@@ -46,13 +48,13 @@ function formatDate() {
 }
 
 export default function DashboardPage() {
+  const ctxUser = useCurrentUser();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<CrossModuleStats>({
     pendingApprovals: 0, totalReceipts: 0, employeeCount: 0,
     pendingClaims: 0, totalLeads: 0, pendingDocs: 0,
   });
-  const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -63,15 +65,6 @@ export default function DashboardPage() {
   useEffect(() => {
     supabase.from("projects").select("*").eq("id", PROJECT_ID).single()
       .then(({ data }) => { setProject(data); setLoading(false); });
-
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user?.user_metadata) {
-        setCurrentUser({
-          name: user.user_metadata.full_name ?? user.email ?? "ผู้ใช้",
-          role: user.user_metadata.department ?? user.user_metadata.role ?? "ผู้ใช้ระบบ",
-        });
-      }
-    });
 
     Promise.all([
       supabase.from("approvals").select("id", { count: "exact" }).eq("status", "pending"),
@@ -107,9 +100,12 @@ export default function DashboardPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div>
-            <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
+              <span className="text-[10px] font-bold bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 px-1.5 py-0.5 rounded-md">V2.0</span>
+            </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
-              {currentUser ? `${currentUser.name} · ${currentUser.role}` : formatDate()}
+              {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -119,6 +115,11 @@ export default function DashboardPage() {
                 <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
               )}
             </button>
+            {ctxUser?.isAdmin && (
+              <Link href="/approvals" className="p-2 rounded-full bg-aviva-gold/10 border border-aviva-gold/30">
+                <Settings size={18} className="text-aviva-gold" />
+              </Link>
+            )}
             <button onClick={handleLogout} className="p-2 rounded-full bg-aviva-card border border-aviva-gold/10">
               <LogOut size={18} className="text-aviva-secondary" />
             </button>
