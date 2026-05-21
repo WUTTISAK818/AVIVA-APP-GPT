@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, Building2, TrendingUp,
   Sparkles, BookOpen, UserCheck, FolderOpen, Megaphone, Wrench,
-  ClipboardCheck, Home,
+  ClipboardCheck, Home, Settings,
 } from "lucide-react";
 import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
@@ -23,6 +23,7 @@ const ALL_TABS = [
   { href: "/community",    label: "นิติบุคคล",   icon: Home,            depts: [],              adminOnly: true,  managerOnly: false },
   { href: "/documents",    label: "เอกสาร",      icon: FolderOpen,      depts: [],              adminOnly: false, managerOnly: false },
   { href: "/ai",           label: "AI",           icon: Sparkles,        depts: [],              adminOnly: false, managerOnly: false },
+  { href: "/settings",     label: "ตั้งค่า",     icon: Settings,        depts: [],              adminOnly: false, managerOnly: false },
 ];
 
 export default function BottomNav() {
