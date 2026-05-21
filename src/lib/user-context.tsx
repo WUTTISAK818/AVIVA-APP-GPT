@@ -10,6 +10,7 @@ export interface AppUser {
   department: string;
   isAdmin: boolean;
   isManager: boolean;
+  isProjectManager: boolean;
 }
 
 const UserContext = createContext<AppUser | null>(null);
@@ -26,7 +27,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       role: meta.role ?? "user",
       department: meta.department ?? "ฝ่ายบริหาร",
       isAdmin: ["admin", "ceo"].includes(meta.role),
-      isManager: ["admin", "ceo", "manager", "director"].includes(meta.role),
+      isManager: ["admin", "ceo", "manager", "director", "project_manager"].includes(meta.role),
+      isProjectManager: meta.role === "project_manager",
     };
   }
 

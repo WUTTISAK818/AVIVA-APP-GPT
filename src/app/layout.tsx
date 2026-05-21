@@ -8,10 +8,10 @@ import { UserProvider } from "@/lib/user-context";
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AVIVA PRIVATE",
-  description: "ระบบบริหารจัดการ AVIVA PRIVATE V9.0",
+  title: "AVIVA ONE V2.0",
+  description: "ระบบบริหารจัดการ AVIVA ONE V2.0",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AVIVA PRIVATE" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AVIVA ONE V2.0" },
   other: { "mobile-web-app-capable": "yes" },
 };
 
