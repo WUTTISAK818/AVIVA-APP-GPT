@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -50,6 +50,17 @@ export default function ConstructionPage() {
   const [showModal, setShowModal] = useState(false);
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editingReport, setEditingReport] = useState<Report | null>(null);
+  const [editingHouse, setEditingHouse] = useState<House | null>(null);
+  const [showHouseEditModal, setShowHouseEditModal] = useState(false);
+  const [houseForm, setHouseForm] = useState({
+    house_number: "",
+    contractor: "",
+    phase: "",
+    delayed_days: "",
+    status: "on-track" as HouseStatus,
+    progress: "",
+  });
   const [form, setForm] = useState({
     house_id: "",
     work_detail: "",
@@ -79,26 +90,84 @@ export default function ConstructionPage() {
 
   const openReport = (house: House) => {
     setSelectedHouse(house);
+    setEditingReport(null);
     setForm({ house_id: house.id, work_detail: "", progress: String(house.progress), issue: "", new_status: house.status });
     setShowModal(true);
   };
 
-  const handleSave = async () => {
-    if (!form.house_id || !form.work_detail) return;
-    setSaving(true);
-    await supabase.from("construction_reports").insert({
-      house_id: form.house_id,
-      work_detail: form.work_detail,
-      progress: Number(form.progress) || 0,
-      issue: form.issue,
+  const openEditReport = (report: Report, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingReport(report);
+    setSelectedHouse(null);
+    setForm({
+      house_id: report.house_id,
+      work_detail: report.work_detail,
+      progress: String(report.progress),
+      issue: report.issue ?? "",
+      new_status: "on-track",
     });
+    setShowModal(true);
+  };
+
+  const openEditHouse = (house: House, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingHouse(house);
+    setHouseForm({
+      house_number: house.house_number,
+      contractor: house.contractor ?? "",
+      phase: house.phase ?? "",
+      delayed_days: String(house.delayed_days ?? 0),
+      status: house.status,
+      progress: String(house.progress),
+    });
+    setShowHouseEditModal(true);
+  };
+
+  const handleSaveHouse = async () => {
+    if (!editingHouse) return;
+    setSaving(true);
     await supabase.from("houses").update({
-      progress: Number(form.progress) || 0,
-      status: form.new_status,
-    }).eq("id", form.house_id);
+      house_number: houseForm.house_number,
+      contractor: houseForm.contractor,
+      phase: houseForm.phase,
+      delayed_days: Number(houseForm.delayed_days) || 0,
+      status: houseForm.status,
+      progress: Number(houseForm.progress) || 0,
+      updated_at: new Date().toISOString(),
+    }).eq("id", editingHouse.id);
+    setSaving(false);
+    setShowHouseEditModal(false);
+    setEditingHouse(null);
+    fetchData();
+  };
+
+  const handleSave = async () => {
+    if (!form.work_detail) return;
+    setSaving(true);
+    if (editingReport) {
+      await supabase.from("construction_reports").update({
+        work_detail: form.work_detail,
+        progress: Number(form.progress) || 0,
+        issue: form.issue,
+        updated_at: new Date().toISOString(),
+      }).eq("id", editingReport.id);
+    } else {
+      if (!form.house_id) { setSaving(false); return; }
+      await supabase.from("construction_reports").insert({
+        house_id: form.house_id,
+        work_detail: form.work_detail,
+        progress: Number(form.progress) || 0,
+        issue: form.issue,
+      });
+      await supabase.from("houses").update({
+        progress: Number(form.progress) || 0,
+        status: form.new_status,
+      }).eq("id", form.house_id);
+    }
     setSaving(false);
     setShowModal(false);
     setSelectedHouse(null);
+    setEditingReport(null);
     fetchData();
   };
 
@@ -113,7 +182,7 @@ export default function ConstructionPage() {
                 {loading ? "กำลังโหลด..." : `${houses.length} ยูนิต · แตะยูนิตเพื่อบันทึก`}
               </p>
             </div>
-            <button onClick={() => { setSelectedHouse(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" }); setShowModal(true); }}
+            <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" }); setShowModal(true); }}
               className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
               <Plus size={14} /> รายงาน
             </button>
@@ -124,7 +193,11 @@ export default function ConstructionPage() {
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
         <GlassCard gold className="p-4">
           <SectionHeader title="ภาพรวมการก่อสร้าง" />
-          <ProgressBar label="ความคืบหน้าโดยรวม" value={overallProgress} sublabel={`${houses.length} ยูนิต`} />
+          {houses.length === 0 ? (
+            <p className="text-aviva-secondary text-sm text-center py-4">ยังไม่มีข้อมูลยูนิต</p>
+          ) : (
+            <ProgressBar label="ความคืบหน้าโดยรวม" value={overallProgress} sublabel={`${houses.length} ยูนิต`} />
+          )}
         </GlassCard>
 
         <div className="grid grid-cols-3 gap-3">
@@ -170,6 +243,10 @@ export default function ConstructionPage() {
                 <div className="grid grid-cols-2 gap-3">
                   {[1,2,3,4].map(i => <div key={i} className="h-32 rounded-2xl bg-aviva-card/50 animate-pulse" />)}
                 </div>
+              ) : filtered.length === 0 ? (
+                <GlassCard className="p-8 text-center">
+                  <p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูล</p>
+                </GlassCard>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   {filtered.map((house) => {
@@ -179,7 +256,15 @@ export default function ConstructionPage() {
                         onClick={() => openReport(house)}>
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-bold text-aviva-text">{house.house_number}</span>
-                          <Icon size={14} className={color} />
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => openEditHouse(house, e)}
+                              className="p-1 rounded-lg bg-aviva-bg/50 hover:bg-aviva-bg transition-all"
+                            >
+                              <Pencil size={11} className="text-aviva-secondary" />
+                            </button>
+                            <Icon size={14} className={color} />
+                          </div>
                         </div>
                         <ProgressBar label="" value={house.progress} showPercent={false} color={progressColor(house.progress)} />
                         <div className="flex items-center justify-between mt-2">
@@ -207,7 +292,7 @@ export default function ConstructionPage() {
             {reports.length === 0 ? (
               <GlassCard className="p-8 text-center">
                 <ClipboardList size={28} className="text-aviva-secondary/30 mx-auto mb-2" />
-                <p className="text-aviva-secondary text-sm">ยังไม่มีรายงาน</p>
+                <p className="text-aviva-secondary text-sm">ยังไม่มีข้อมูล</p>
                 <p className="text-aviva-secondary/60 text-xs mt-1">แตะยูนิตหรือกดปุ่ม + เพื่อบันทึก</p>
               </GlassCard>
             ) : (
@@ -224,9 +309,17 @@ export default function ConstructionPage() {
                         <p className="text-sm text-aviva-text mt-0.5">{r.work_detail}</p>
                         {r.issue && <p className="text-xs text-red-400 mt-0.5">⚠ {r.issue}</p>}
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-lg font-bold text-aviva-gold">{r.progress}%</p>
-                        <p className="text-[10px] text-aviva-secondary">ความคืบหน้า</p>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={(e) => openEditReport(r, e)}
+                          className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all"
+                        >
+                          <Pencil size={12} className="text-aviva-secondary" />
+                        </button>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-aviva-gold">{r.progress}%</p>
+                          <p className="text-[10px] text-aviva-secondary">ความคืบหน้า</p>
+                        </div>
                       </div>
                     </div>
                   </GlassCard>
@@ -237,19 +330,25 @@ export default function ConstructionPage() {
         )}
       </div>
 
-      {/* Report Modal */}
+      {/* Report Modal (add / edit report) */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">
-                {selectedHouse ? `บันทึกรายงาน — ${selectedHouse.house_number}` : "บันทึกรายงานประจำวัน"}
+                {editingReport
+                  ? "แก้ไขรายงาน"
+                  : selectedHouse
+                  ? `บันทึกรายงาน — ${selectedHouse.house_number}`
+                  : "บันทึกรายงานประจำวัน"}
               </h2>
-              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+              <button onClick={() => { setShowModal(false); setEditingReport(null); }}>
+                <X size={20} className="text-aviva-secondary" />
+              </button>
             </div>
 
             <div className="space-y-3">
-              {!selectedHouse && (
+              {!selectedHouse && !editingReport && (
                 <div>
                   <label className="text-xs text-aviva-secondary mb-1 block">เลือกยูนิต *</label>
                   <select value={form.house_id} onChange={(e) => setForm({ ...form, house_id: e.target.value })}
@@ -276,15 +375,17 @@ export default function ConstructionPage() {
                     placeholder="0-100"
                     className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
                 </div>
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
-                  <select value={form.new_status} onChange={(e) => setForm({ ...form, new_status: e.target.value as HouseStatus })}
-                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
-                    <option value="on-track">ตามแผน</option>
-                    <option value="delayed">ล่าช้า</option>
-                    <option value="complete">เสร็จแล้ว</option>
-                  </select>
-                </div>
+                {!editingReport && (
+                  <div>
+                    <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                    <select value={form.new_status} onChange={(e) => setForm({ ...form, new_status: e.target.value as HouseStatus })}
+                      className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                      <option value="on-track">ตามแผน</option>
+                      <option value="delayed">ล่าช้า</option>
+                      <option value="complete">เสร็จแล้ว</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -296,9 +397,74 @@ export default function ConstructionPage() {
             </div>
 
             <button onClick={handleSave}
-              disabled={saving || !form.work_detail || (!selectedHouse && !form.house_id)}
+              disabled={saving || !form.work_detail || (!selectedHouse && !editingReport && !form.house_id)}
               className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : "บันทึกรายงาน"}
+              {saving ? "กำลังบันทึก..." : editingReport ? "บันทึกการแก้ไข" : "บันทึกรายงาน"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit House Modal */}
+      {showHouseEditModal && editingHouse && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">แก้ไขยูนิต — {editingHouse.house_number}</h2>
+              <button onClick={() => { setShowHouseEditModal(false); setEditingHouse(null); }}>
+                <X size={20} className="text-aviva-secondary" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">หมายเลขยูนิต</label>
+                  <input type="text" value={houseForm.house_number}
+                    onChange={(e) => setHouseForm({ ...houseForm, house_number: e.target.value })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">สถานะ</label>
+                  <select value={houseForm.status}
+                    onChange={(e) => setHouseForm({ ...houseForm, status: e.target.value as HouseStatus })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                    <option value="on-track">ตามแผน</option>
+                    <option value="delayed">ล่าช้า</option>
+                    <option value="complete">เสร็จแล้ว</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผู้รับเหมา</label>
+                <input type="text" value={houseForm.contractor}
+                  onChange={(e) => setHouseForm({ ...houseForm, contractor: e.target.value })}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">เฟส / ขั้นตอน</label>
+                <input type="text" value={houseForm.phase}
+                  onChange={(e) => setHouseForm({ ...houseForm, phase: e.target.value })}
+                  placeholder="เช่น งานโครงสร้าง"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ความคืบหน้า (%)</label>
+                  <input type="number" min="0" max="100" value={houseForm.progress}
+                    onChange={(e) => setHouseForm({ ...houseForm, progress: e.target.value })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ล่าช้า (วัน)</label>
+                  <input type="number" min="0" value={houseForm.delayed_days}
+                    onChange={(e) => setHouseForm({ ...houseForm, delayed_days: e.target.value })}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+              </div>
+            </div>
+            <button onClick={handleSaveHouse} disabled={saving}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {saving ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
             </button>
           </div>
         </div>
