@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Star, Phone, Plus, X, Pencil } from "lucide-react";
+import { Search, Star, Phone, Plus, X, Pencil, MessageCircle, PhoneCall } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -30,6 +30,7 @@ const sourceColor: Record<string, string> = {
 };
 
 const SOURCES = ["Facebook", "TikTok", "Google", "Referral", "Walk-in", "อื่นๆ"];
+const CALL_STATUSES = ["โทรติด-สนใจ", "โทรติด-ไม่สนใจ", "โทรไม่ติด", "นัดหมายแล้ว", "ส่ง LINE แล้ว"];
 
 function scoreColor(score: number) {
   if (score >= 80) return "text-green-400";
@@ -41,6 +42,12 @@ function formatBudget(n: number) {
   return `฿${(n / 1_000_000).toFixed(1)}M`;
 }
 
+function getChatLink(lead: Lead): string {
+  if (lead.source === "TikTok") return `tiktok://user?username=${encodeURIComponent(lead.customer_name)}`;
+  if (lead.source === "Instagram") return `instagram://user?username=${encodeURIComponent(lead.customer_name)}`;
+  return `https://line.me/R/oaMessage/@`;
+}
+
 const emptyForm = {
   customer_name: "",
   phone: "",
@@ -49,6 +56,8 @@ const emptyForm = {
   status: "New Lead" as LeadStatus,
   notes: "",
 };
+
+const emptyCrmLog = { channel: "Phone", callStatus: "", note: "" };
 
 export default function CRMPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -60,6 +69,9 @@ export default function CRMPage() {
   const [saving, setSaving] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [crmLogLead, setCrmLogLead] = useState<Lead | null>(null);
+  const [crmLogForm, setCrmLogForm] = useState(emptyCrmLog);
+  const [savingLog, setSavingLog] = useState(false);
 
   const fetchLeads = () => {
     supabase
@@ -80,9 +92,7 @@ export default function CRMPage() {
   ) as Record<LeadStatus, number>;
 
   const filtered = leads.filter(
-    (l) =>
-      l.status === activeStage &&
-      (search === "" || l.customer_name.includes(search))
+    (l) => l.status === activeStage && (search === "" || l.customer_name.includes(search))
   );
 
   const openEdit = (lead: Lead, e: React.MouseEvent) => {
@@ -97,6 +107,33 @@ export default function CRMPage() {
       notes: lead.notes ?? "",
     });
     setShowModal(true);
+  };
+
+  const openCall = (lead: Lead, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCrmLogLead(lead);
+    setCrmLogForm({ channel: "Phone", callStatus: "", note: "" });
+  };
+
+  const openChat = (lead: Lead, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const channel = ["TikTok", "Instagram"].includes(lead.source) ? lead.source : "LINE";
+    setCrmLogLead(lead);
+    setCrmLogForm({ channel, callStatus: "", note: "" });
+  };
+
+  const saveCrmLog = async () => {
+    if (!crmLogLead || !crmLogForm.callStatus) return;
+    setSavingLog(true);
+    await supabase.from("crm_logs").insert({
+      lead_id: crmLogLead.id,
+      contact_channel: crmLogForm.channel,
+      call_status: crmLogForm.callStatus,
+      call_note: crmLogForm.note,
+    });
+    setSavingLog(false);
+    setCrmLogLead(null);
+    setCrmLogForm(emptyCrmLog);
   };
 
   const openAdd = () => {
@@ -154,22 +191,16 @@ export default function CRMPage() {
                 {loading ? "กำลังโหลด..." : `${leads.length} ราย · Real-time`}
               </p>
             </div>
-            <button
-              onClick={openAdd}
-              className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl"
-            >
+            <button onClick={openAdd}
+              className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
               <Plus size={14} /> เพิ่ม Lead
             </button>
           </div>
           <div className="relative mt-3">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-aviva-secondary" />
-            <input
-              type="text"
-              placeholder="ค้นหาลูกค้า..."
-              value={search}
+            <input type="text" placeholder="ค้นหาลูกค้า..." value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl pl-8 pr-4 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/50 outline-none focus:border-aviva-gold/40"
-            />
+              className="w-full bg-aviva-card border border-aviva-gold/10 rounded-xl pl-8 pr-4 py-2.5 text-sm text-aviva-text placeholder:text-aviva-secondary/50 outline-none focus:border-aviva-gold/40" />
           </div>
         </div>
       </div>
@@ -193,16 +224,13 @@ export default function CRMPage() {
           <SectionHeader title="Pipeline" subtitle="แตะเพื่อกรอง" />
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
             {pipelineStages.map((stage) => (
-              <button
-                key={stage}
-                onClick={() => setActiveStage(stage)}
+              <button key={stage} onClick={() => setActiveStage(stage)}
                 className={clsx(
                   "flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
                   activeStage === stage
                     ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
                     : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
-                )}
-              >
+                )}>
                 {stage}
                 <span className={clsx(
                   "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
@@ -217,26 +245,20 @@ export default function CRMPage() {
 
         <div className="space-y-3">
           {loading ? (
-            [1, 2, 3].map((i) => (
-              <div key={i} className="h-20 rounded-2xl bg-aviva-card/50 animate-pulse" />
-            ))
+            [1, 2, 3].map((i) => <div key={i} className="h-20 rounded-2xl bg-aviva-card/50 animate-pulse" />)
           ) : filtered.length === 0 ? (
             <GlassCard className="p-8 text-center">
               <p className="text-aviva-secondary text-sm">ยังไม่มี Lead ในขั้นนี้</p>
             </GlassCard>
           ) : (
             filtered.map((lead) => (
-              <GlassCard
-                key={lead.id}
-                className="p-4 cursor-pointer active:scale-[0.98] transition-transform"
-                onClick={() => setSelectedLead(lead)}
-              >
+              <GlassCard key={lead.id} className="p-4 cursor-pointer active:scale-[0.98] transition-transform"
+                onClick={() => setSelectedLead(lead)}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-semibold text-aviva-text">{lead.customer_name}</h3>
-                      <span className={clsx(
-                        "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
+                      <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded-full",
                         sourceColor[lead.source] ?? "bg-gray-500/20 text-gray-400"
                       )}>
                         {lead.source}
@@ -253,12 +275,21 @@ export default function CRMPage() {
                     {lead.notes && (
                       <p className="text-[10px] text-aviva-secondary/70 mt-1 truncate">{lead.notes}</p>
                     )}
+                    <div className="flex items-center gap-2 mt-2">
+                      <button onClick={(e) => openCall(lead, e)}
+                        className="flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-[10px] font-medium">
+                        <PhoneCall size={10} /> โทร
+                      </button>
+                      <button onClick={(e) => openChat(lead, e)}
+                        className="flex items-center gap-1 px-2 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg text-[10px] font-medium">
+                        <MessageCircle size={10} />
+                        {["TikTok", "Instagram"].includes(lead.source) ? lead.source : "LINE"}
+                      </button>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => openEdit(lead, e)}
-                      className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all"
-                    >
+                    <button onClick={(e) => openEdit(lead, e)}
+                      className="p-1.5 rounded-lg bg-aviva-bg border border-aviva-gold/10 hover:border-aviva-gold/40 transition-all">
                       <Pencil size={12} className="text-aviva-secondary" />
                     </button>
                     <div className="flex flex-col items-center gap-0.5">
@@ -275,6 +306,63 @@ export default function CRMPage() {
           )}
         </div>
       </div>
+
+      {crmLogLead && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-aviva-text">บันทึกการติดต่อ</h2>
+                <p className="text-xs text-aviva-secondary">{crmLogLead.customer_name} · {crmLogLead.phone}</p>
+              </div>
+              <button onClick={() => setCrmLogLead(null)}>
+                <X size={20} className="text-aviva-secondary" />
+              </button>
+            </div>
+
+            {crmLogForm.channel === "Phone" ? (
+              <a href={`tel:${crmLogLead.phone}`}
+                className="flex items-center justify-center gap-2 w-full py-3 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-sm font-medium">
+                <PhoneCall size={16} /> กดโทร {crmLogLead.phone}
+              </a>
+            ) : (
+              <a href={getChatLink(crmLogLead)} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-xl text-sm font-medium">
+                <MessageCircle size={16} /> เปิด {crmLogForm.channel}
+              </a>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ช่องทาง</label>
+                <select value={crmLogForm.channel} onChange={(e) => setCrmLogForm({ ...crmLogForm, channel: e.target.value })}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  {["Phone", "LINE", "Instagram", "TikTok"].map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผลการติดต่อ *</label>
+                <select value={crmLogForm.callStatus} onChange={(e) => setCrmLogForm({ ...crmLogForm, callStatus: e.target.value })}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  <option value="">-- เลือกผลการติดต่อ --</option>
+                  {CALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">บันทึกเพิ่มเติม</label>
+                <textarea value={crmLogForm.note} onChange={(e) => setCrmLogForm({ ...crmLogForm, note: e.target.value })}
+                  placeholder="รายละเอียดการพูดคุย..." rows={2}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+              </div>
+            </div>
+
+            <button onClick={saveCrmLog} disabled={savingLog || !crmLogForm.callStatus}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {savingLog ? "กำลังบันทึก..." : "บันทึก CRM Log"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
