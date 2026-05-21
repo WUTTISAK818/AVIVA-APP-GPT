@@ -76,7 +76,6 @@ export default function SettingsPage() {
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-5">
-        {/* Profile */}
         <GlassCard className="p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-aviva-gold/10 border border-aviva-gold/30 flex items-center justify-center">
@@ -99,7 +98,6 @@ export default function SettingsPage() {
           </div>
         </GlassCard>
 
-        {/* Theme */}
         <GlassCard className="p-4">
           <p className="text-sm font-semibold text-aviva-text mb-3">การแสดงหน้าจอ</p>
           <div className="grid grid-cols-3 gap-2">
@@ -120,7 +118,6 @@ export default function SettingsPage() {
           </div>
         </GlassCard>
 
-        {/* Admin: User Management */}
         {user?.isManager && (
           <GlassCard className="p-0 overflow-hidden">
             <p className="text-xs font-semibold text-aviva-secondary/70 px-4 pt-4 pb-2 uppercase tracking-wider">จัดการระบบ</p>
@@ -140,7 +137,6 @@ export default function SettingsPage() {
           </GlassCard>
         )}
 
-        {/* Admin: Project Info */}
         {user?.isAdmin && projectForm && (
           <GlassCard className="p-4">
             <div className="flex items-center gap-2 mb-4">
