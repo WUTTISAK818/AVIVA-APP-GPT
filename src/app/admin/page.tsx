@@ -7,8 +7,8 @@ export default function AdminPage() {
   const user = useCurrentUser();
   const router = useRouter();
   useEffect(() => {
-    if (user !== null && !user.isAdmin) router.replace("/dashboard");
-    else if (user?.isAdmin) router.replace("/approvals");
+    if (!user) return;
+    router.replace(user.isAdmin ? "/approvals" : "/dashboard");
   }, [user, router]);
   return null;
 }

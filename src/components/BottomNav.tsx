@@ -1,4 +1,5 @@
 "use client";
+import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -29,14 +30,14 @@ export default function BottomNav() {
   const user = useCurrentUser();
   if (pathname === "/login") return null;
 
-  const navItems = ALL_TABS.filter((tab) => {
+  const navItems = useMemo(() => ALL_TABS.filter((tab) => {
     if (tab.adminOnly) return user?.isAdmin ?? false;
     if (tab.managerOnly) return user?.isAdmin || user?.isManager || false;
     if (!user) return tab.depts.length === 0;
     if (user.isAdmin || user.isManager) return true;
     if (tab.depts.length === 0) return true;
     return tab.depts.includes(user.department);
-  });
+  }), [user]);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-aviva-nav border-t border-aviva-gold/20">

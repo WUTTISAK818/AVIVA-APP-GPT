@@ -40,16 +40,18 @@ export default function ApprovalsPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (user !== undefined && user !== null && !user.isAdmin && !user.isManager) {
+    if (!user) return;
+    if (!user.isAdmin && !user.isManager) {
       router.replace("/dashboard");
       return;
     }
     fetchLogs();
-  }, [user]);
+  }, [user, router]);
 
   const fetchLogs = () => {
     supabase.from("approval_logs").select("*")
       .order("action_timestamp", { ascending: false, nullsFirst: true })
+      .limit(100)
       .then(({ data }) => { setLogs((data as ApprovalLog[]) ?? []); setLoading(false); });
   };
 

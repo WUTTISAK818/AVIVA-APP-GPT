@@ -74,10 +74,10 @@ export default function HRPage() {
   const totalSalary = active.reduce((s, e) => s + Number(e.base_salary), 0);
   const filtered = filterDept === "ทั้งหมด" ? employees : employees.filter((e) => e.department === filterDept);
 
-  const probationAlerts = active.filter((e) => {
-    if (!e.start_date) return false;
+  const probationAlerts = active.flatMap((e) => {
+    if (!e.start_date) return [];
     const days = Math.floor((Date.now() - new Date(e.start_date).getTime()) / 86400000);
-    return days >= 80 && days <= 180;
+    return days >= 80 && days <= 180 ? [{ ...e, probationDays: days }] : [];
   });
 
   const handleSave = async () => {
@@ -151,14 +151,11 @@ export default function HRPage() {
               <div>
                 <p className="text-xs font-semibold text-yellow-400">แจ้งเตือน Probation ครบ 80 วัน</p>
                 <div className="mt-1 space-y-0.5">
-                  {probationAlerts.map((e) => {
-                    const days = Math.floor((Date.now() - new Date(e.start_date).getTime()) / 86400000);
-                    return (
-                      <p key={e.id} className="text-[11px] text-yellow-400/80">
-                        {e.full_name} · {e.department} · {days} วัน
-                      </p>
-                    );
-                  })}
+                  {probationAlerts.map((e) => (
+                    <p key={e.id} className="text-[11px] text-yellow-400/80">
+                      {e.full_name} · {e.department} · {e.probationDays} วัน
+                    </p>
+                  ))}
                 </div>
               </div>
             </div>

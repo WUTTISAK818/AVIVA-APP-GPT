@@ -69,7 +69,6 @@ export default function CRMPage() {
   const [saving, setSaving] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
-  const [showCrmLog, setShowCrmLog] = useState(false);
   const [crmLogLead, setCrmLogLead] = useState<Lead | null>(null);
   const [crmLogForm, setCrmLogForm] = useState(emptyCrmLog);
   const [savingLog, setSavingLog] = useState(false);
@@ -114,7 +113,6 @@ export default function CRMPage() {
     e.stopPropagation();
     setCrmLogLead(lead);
     setCrmLogForm({ channel: "Phone", callStatus: "", note: "" });
-    setShowCrmLog(true);
   };
 
   const openChat = (lead: Lead, e: React.MouseEvent) => {
@@ -122,7 +120,6 @@ export default function CRMPage() {
     const channel = ["TikTok", "Instagram"].includes(lead.source) ? lead.source : "LINE";
     setCrmLogLead(lead);
     setCrmLogForm({ channel, callStatus: "", note: "" });
-    setShowCrmLog(true);
   };
 
   const saveCrmLog = async () => {
@@ -135,7 +132,6 @@ export default function CRMPage() {
       call_note: crmLogForm.note,
     });
     setSavingLog(false);
-    setShowCrmLog(false);
     setCrmLogLead(null);
     setCrmLogForm(emptyCrmLog);
   };
@@ -312,7 +308,7 @@ export default function CRMPage() {
       </div>
 
       {/* CRM Log Modal */}
-      {showCrmLog && crmLogLead && (
+      {crmLogLead && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
             <div className="flex items-center justify-between">
@@ -320,7 +316,7 @@ export default function CRMPage() {
                 <h2 className="text-lg font-bold text-aviva-text">บันทึกการติดต่อ</h2>
                 <p className="text-xs text-aviva-secondary">{crmLogLead.customer_name} · {crmLogLead.phone}</p>
               </div>
-              <button onClick={() => { setShowCrmLog(false); setCrmLogLead(null); }}>
+              <button onClick={() => setCrmLogLead(null)}>
                 <X size={20} className="text-aviva-secondary" />
               </button>
             </div>

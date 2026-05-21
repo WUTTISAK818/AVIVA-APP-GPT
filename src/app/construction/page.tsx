@@ -86,12 +86,16 @@ export default function ConstructionPage() {
   });
 
   const fetchData = () => {
-    supabase.from("houses").select("*").eq("project_id", PROJECT_ID).order("house_number")
-      .then(({ data }) => { setHouses((data as House[]) ?? []); setLoading(false); });
-    supabase.from("construction_reports").select("*").order("created_at", { ascending: false }).limit(30)
-      .then(({ data }) => setReports((data as Report[]) ?? []));
-    supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50)
-      .then(({ data }) => setDefects((data as Defect[]) ?? []));
+    Promise.all([
+      supabase.from("houses").select("*").eq("project_id", PROJECT_ID).order("house_number"),
+      supabase.from("construction_reports").select("*").order("created_at", { ascending: false }).limit(30),
+      supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
+    ]).then(([hRes, rRes, dRes]) => {
+      setHouses((hRes.data as House[]) ?? []);
+      setReports((rRes.data as Report[]) ?? []);
+      setDefects((dRes.data as Defect[]) ?? []);
+      setLoading(false);
+    });
   };
 
   useEffect(() => { fetchData(); }, []);

@@ -37,12 +37,13 @@ export default function CommunityPage() {
   const [filterStatus, setFilterStatus] = useState<"all" | "Paid" | "Unpaid">("all");
 
   useEffect(() => {
-    if (user !== undefined && user !== null && !user.isAdmin) {
+    if (!user) return;
+    if (!user.isAdmin) {
       router.replace("/dashboard");
       return;
     }
     fetchMembers();
-  }, [user]);
+  }, [user, router]);
 
   const fetchMembers = () => {
     supabase.from("community_members").select("*").order("owner_name")
