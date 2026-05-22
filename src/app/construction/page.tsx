@@ -7,6 +7,7 @@ import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import ProgressBar from "@/components/ProgressBar";
 import AIInsightPanel from "@/components/AIInsightPanel";
+import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { supabase } from "@/lib/supabase";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -126,10 +127,17 @@ export default function ConstructionPage() {
   const [form, setForm] = useState({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" as HouseStatus });
   const [defectForm, setDefectForm] = useState({ house_id: "", defect_category: "งานสี", description: "" });
 
+  const [rptPeriod, setRptPeriod] = useState<Period>("month");
+  const [rptStart, setRptStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
+  const [rptEnd, setRptEnd] = useState(() => new Date().toISOString().split("T")[0]);
+
   const fetchData = () => {
+    let rptQ = supabase.from("construction_reports").select("*");
+    if (rptStart) rptQ = rptQ.gte("created_at", rptStart);
+    if (rptEnd) rptQ = rptQ.lte("created_at", rptEnd + "T23:59:59");
     Promise.all([
       supabase.from("houses").select("*").eq("project_id", PROJECT_ID).order("house_number"),
-      supabase.from("construction_reports").select("*").order("created_at", { ascending: false }).limit(30),
+      rptQ.order("created_at", { ascending: false }).limit(50),
       supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
     ]).then(([hRes, rRes, dRes]) => {
       setHouses((hRes.data as House[]) ?? []);
@@ -139,7 +147,7 @@ export default function ConstructionPage() {
     });
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [rptStart, rptEnd]);
 
   const fetchInstallments = async (house: House) => {
     setInstHouse(house);
@@ -387,7 +395,8 @@ export default function ConstructionPage() {
 
         {tab === "reports" && (
           <div className="space-y-3">
-            <SectionHeader title="รายงานประจำวัน" subtitle="ล่าสุด 30 รายการ" />
+            <PeriodFilter period={rptPeriod} onChange={(p, s, e) => { setRptPeriod(p); setRptStart(s); setRptEnd(e); }} />
+            <SectionHeader title="รายงานประจำวัน" subtitle="กรองตามช่วงเวลา" />
             {reports.length === 0 ? (
               <GlassCard className="p-8 text-center">
                 <ClipboardList size={28} className="text-aviva-secondary/30 mx-auto mb-2" />

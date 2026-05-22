@@ -14,6 +14,7 @@ import AIInsightPanel from "@/components/AIInsightPanel";
 import { supabase } from "@/lib/supabase";
 import { logAction } from "@/lib/audit";
 import { useCurrentUser } from "@/lib/user-context";
+import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales";
 
@@ -69,11 +70,16 @@ function FinanceContent() {
   const [form, setForm] = useState(emptyFinanceForm);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"txn" | "approval">("txn");
+  const [period, setPeriod] = useState<Period>("month");
+  const [dateStart, setDateStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
+  const [dateEnd, setDateEnd] = useState(() => new Date().toISOString().split("T")[0]);
 
   const fetchData = () => {
+    let txnQ = supabase.from("finance_transactions").select("*").eq("project_id", PROJECT_ID);
+    if (dateStart) txnQ = txnQ.gte("created_at", dateStart);
+    if (dateEnd) txnQ = txnQ.lte("created_at", dateEnd + "T23:59:59");
     Promise.all([
-      supabase.from("finance_transactions").select("*").eq("project_id", PROJECT_ID)
-        .order("created_at", { ascending: false }).limit(20),
+      txnQ.order("created_at", { ascending: false }).limit(50),
       supabase.from("approvals").select("*").eq("module", "finance")
         .order("created_at", { ascending: false }),
       supabase.from("approval_logs").select("approval_id", { count: "exact", head: true })
@@ -86,7 +92,7 @@ function FinanceContent() {
     });
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [dateStart, dateEnd]);
 
   const totalIncome = transactions
     .filter(t => t.transaction_type === "income")
@@ -190,6 +196,8 @@ function FinanceContent() {
         title="AI: วิเคราะห์การเงิน"
         message="รายจ่ายเดือนนี้ควรตรวจสอบหมวดก่อสร้าง แนะนำทบทวนงบประมาณผู้รับเหมาก่อนสิ้นไตรมาส"
       />
+
+      <PeriodFilter period={period} onChange={(p, s, e) => { setPeriod(p); setDateStart(s); setDateEnd(e); }} />
 
       {/* Add button */}
       <button
@@ -376,17 +384,22 @@ function AccountingContent() {
   const [form, setForm] = useState(emptyReceiptForm);
   const [saving, setSaving] = useState(false);
   const [filterType, setFilterType] = useState<"all" | "expense" | "income">("all");
+  const [acctPeriod, setAcctPeriod] = useState<Period>("month");
+  const [acctStart, setAcctStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
+  const [acctEnd, setAcctEnd] = useState(() => new Date().toISOString().split("T")[0]);
 
   const fetchReceipts = () => {
-    supabase.from("receipts").select("*").eq("project_id", PROJECT_ID)
-      .order("receipt_date", { ascending: false })
+    let q = supabase.from("receipts").select("*").eq("project_id", PROJECT_ID);
+    if (acctStart) q = q.gte("receipt_date", acctStart);
+    if (acctEnd) q = q.lte("receipt_date", acctEnd);
+    q.order("receipt_date", { ascending: false })
       .then(({ data }) => {
         setReceipts((data as ReceiptRow[]) ?? []);
         setLoading(false);
       });
   };
 
-  useEffect(() => { fetchReceipts(); }, []);
+  useEffect(() => { fetchReceipts(); }, [acctStart, acctEnd]);
 
   const totalExpense = receipts.filter(r => r.receipt_type === "expense").reduce((s, r) => s + Number(r.amount), 0);
   const totalIncome = receipts.filter(r => r.receipt_type === "income").reduce((s, r) => s + Number(r.amount), 0);
@@ -438,6 +451,8 @@ function AccountingContent() {
         title="AI: รายรับสูงขึ้น"
         message="ยอดรับเงินเดือนนี้เพิ่มขึ้นจากเดือนก่อน แนะนำตรวจสอบการจับคู่ใบเสร็จกับสัญญาให้ครบถ้วน"
       />
+
+      <PeriodFilter period={acctPeriod} onChange={(p, s, e) => { setAcctPeriod(p); setAcctStart(s); setAcctEnd(e); }} />
 
       {/* Add button */}
       <button
@@ -634,14 +649,19 @@ function MarketingContent() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyCampaignForm);
   const [saving, setSaving] = useState(false);
+  const [mktPeriod, setMktPeriod] = useState<Period>("month");
+  const [mktStart, setMktStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
+  const [mktEnd, setMktEnd] = useState(() => new Date().toISOString().split("T")[0]);
 
   const fetchCampaigns = () => {
-    supabase.from("campaigns").select("*").eq("project_id", PROJECT_ID)
-      .order("created_at", { ascending: false })
+    let q = supabase.from("campaigns").select("*").eq("project_id", PROJECT_ID);
+    if (mktStart) q = q.gte("created_at", mktStart);
+    if (mktEnd) q = q.lte("created_at", mktEnd + "T23:59:59");
+    q.order("created_at", { ascending: false })
       .then(({ data }) => { setCampaigns((data as Campaign[]) ?? []); setLoading(false); });
   };
 
-  useEffect(() => { fetchCampaigns(); }, []);
+  useEffect(() => { fetchCampaigns(); }, [mktStart, mktEnd]);
 
   const filtered = filter === "all" ? campaigns : campaigns.filter(c => c.platform === filter);
   const totalLeads = campaigns.reduce((s, c) => s + c.leads_generated, 0);
@@ -716,6 +736,8 @@ function MarketingContent() {
         title="AI: Facebook ROI สูงสุด"
         message="แคมเปญ Facebook มี ROI เฉลี่ยสูงสุด แนะนำเพิ่มงบอีก 20% และทดสอบ Creative ใหม่ในกลุ่มเป้าหมาย 35-50 ปีครับ"
       />
+
+      <PeriodFilter period={mktPeriod} onChange={(p, s, e) => { setMktPeriod(p); setMktStart(s); setMktEnd(e); }} />
 
       {/* Add button */}
       <button
