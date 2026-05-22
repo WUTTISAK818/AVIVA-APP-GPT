@@ -76,7 +76,7 @@ export default function CommunityPage() {
   };
 
   return (
-    <div className="min-h-screen bg-aviva-bg">
+    <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between">

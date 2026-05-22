@@ -9,10 +9,10 @@ import { ThemeProvider } from "@/lib/theme-context";
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AVIVA ONE V2.0",
-  description: "ระบบบริหารจัดการ AVIVA ONE V2.0",
+  title: "AVIVA ONE",
+  description: "ระบบบริหารจัดการ AVIVA ONE",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AVIVA ONE V2.0" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AVIVA ONE" },
   other: { "mobile-web-app-capable": "yes" },
 };
 

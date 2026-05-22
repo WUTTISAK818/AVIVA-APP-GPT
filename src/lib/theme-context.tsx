@@ -1,66 +1,47 @@
 "use client";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
-export type ThemeMode = "dark" | "light" | "auto";
+type Theme = "dark" | "light" | "auto";
 
 interface ThemeContextValue {
-  mode: ThemeMode;
-  setMode: (mode: ThemeMode) => void;
-  resolvedTheme: "dark" | "light";
+  theme: Theme;
+  setTheme: (t: Theme) => void;
 }
 
-const ThemeContext = createContext<ThemeContextValue>({
-  mode: "dark",
-  setMode: () => {},
-  resolvedTheme: "dark",
-});
+const ThemeContext = createContext<ThemeContextValue>({ theme: "dark", setTheme: () => {} });
 
-function getResolved(mode: ThemeMode): "dark" | "light" {
-  if (mode !== "auto") return mode;
-  if (typeof window === "undefined") return "dark";
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-}
-
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>("dark");
-  const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("dark");
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [theme, setThemeState] = useState<Theme>("dark");
 
   useEffect(() => {
-    const stored = (localStorage.getItem("aviva-theme") as ThemeMode) || "dark";
-    setModeState(stored);
-    const resolved = getResolved(stored);
-    setResolvedTheme(resolved);
-    document.documentElement.classList.toggle("theme-light", resolved === "light");
+    const saved = (localStorage.getItem("aviva-theme") as Theme) ?? "dark";
+    setThemeState(saved);
+    applyTheme(saved);
   }, []);
 
-  useEffect(() => {
-    const resolved = getResolved(mode);
-    setResolvedTheme(resolved);
-    document.documentElement.classList.toggle("theme-light", resolved === "light");
-  }, [mode]);
-
-  useEffect(() => {
-    if (mode !== "auto") return;
-    const mq = window.matchMedia("(prefers-color-scheme: light)");
-    const handler = () => {
-      const resolved = getResolved("auto");
-      setResolvedTheme(resolved);
-      document.documentElement.classList.toggle("theme-light", resolved === "light");
-    };
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, [mode]);
-
-  function setMode(m: ThemeMode) {
-    setModeState(m);
-    localStorage.setItem("aviva-theme", m);
-  }
+  const setTheme = (t: Theme) => {
+    setThemeState(t);
+    localStorage.setItem("aviva-theme", t);
+    applyTheme(t);
+  };
 
   return (
-    <ThemeContext.Provider value={{ mode, setMode, resolvedTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );
+}
+
+function applyTheme(theme: Theme) {
+  const root = document.documentElement;
+  if (theme === "light") {
+    root.classList.add("theme-light");
+  } else if (theme === "dark") {
+    root.classList.remove("theme-light");
+  } else {
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    root.classList.toggle("theme-light", !prefersDark);
+  }
 }
 
 export function useTheme() {
