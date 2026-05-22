@@ -5,7 +5,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, Plus, X, Clock, ClipboardCheck,
   Receipt, FileText, Users, Phone, Briefcase, AlertCircle, Megaphone,
   Sparkles, Wrench, CheckCircle, AlertTriangle, Star, Download,
-  XCircle, ShieldAlert,
+  XCircle, ShieldAlert, Package, Printer, ChevronDown, ChevronUp,
 } from "lucide-react";
 import clsx from "clsx";
 import GlassCard from "@/components/GlassCard";
@@ -18,7 +18,7 @@ import { useCurrentUser } from "@/lib/user-context";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
 import { createNotification } from "@/lib/notify";
 
-type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals";
+type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "payroll";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const today = new Date().toISOString().split("T")[0];
@@ -1718,15 +1718,400 @@ function ApprovalsContent() {
   );
 }
 
+// ─── Materials / Stock ────────────────────────────────────────────────────────
+
+interface Material {
+  id: string; name: string; unit: string; unit_price: number;
+  quantity: number; min_stock: number; current_stock: number;
+  status: string; supplier: string; delivery_date: string;
+}
+interface PurchaseOrder {
+  id: string; po_number: string; supplier_name: string;
+  items: { name: string; qty: number; unit: string; unit_price: number }[];
+  total_amount: number; status: string; requested_by: string; created_at: string;
+}
+
+function MaterialsContent() {
+  const user = useCurrentUser();
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [pos, setPos] = useState<PurchaseOrder[]>([]);
+  const [activeView, setActiveView] = useState<"stock" | "po">("stock");
+  const [loading, setLoading] = useState(true);
+  const [showPOModal, setShowPOModal] = useState(false);
+  const [poForm, setPoForm] = useState({ supplier_name: "", items: "", notes: "" });
+  const [saving, setSaving] = useState(false);
+  const [expandedPO, setExpandedPO] = useState<string | null>(null);
+
+  const fetchData = () => {
+    Promise.all([
+      supabase.from("materials").select("*").eq("project_id", PROJECT_ID).order("name"),
+      supabase.from("purchase_orders").select("*").eq("project_id", PROJECT_ID).order("created_at", { ascending: false }),
+    ]).then(([mRes, pRes]) => {
+      setMaterials((mRes.data as Material[]) ?? []);
+      setPos((pRes.data as PurchaseOrder[]) ?? []);
+      setLoading(false);
+    });
+  };
+  useEffect(() => { fetchData(); }, []);
+
+  const stockStatus = (m: Material) => {
+    const cur = m.current_stock ?? 0;
+    const min = m.min_stock ?? 0;
+    if (cur === 0) return { label: "หมด", cls: "bg-red-500/20 text-red-400" };
+    if (cur < min) return { label: "ต่ำ", cls: "bg-yellow-500/20 text-yellow-400" };
+    return { label: "OK", cls: "bg-green-500/20 text-green-400" };
+  };
+
+  const poStatusLabel: Record<string, { label: string; cls: string }> = {
+    draft:            { label: "ร่าง",         cls: "bg-gray-500/20 text-gray-400" },
+    pending_approval: { label: "รออนุมัติ",     cls: "bg-yellow-500/20 text-yellow-400" },
+    approved:         { label: "อนุมัติแล้ว",   cls: "bg-green-500/20 text-green-400" },
+    received:         { label: "รับของแล้ว",    cls: "bg-blue-500/20 text-blue-400" },
+    cancelled:        { label: "ยกเลิก",        cls: "bg-red-500/20 text-red-400" },
+  };
+
+  const handleCreatePO = async () => {
+    if (!poForm.supplier_name || !poForm.items) return;
+    setSaving(true);
+    let parsedItems = [];
+    try { parsedItems = JSON.parse(poForm.items); } catch { parsedItems = [{ name: poForm.items, qty: 1, unit: "ชิ้น", unit_price: 0 }]; }
+    const total = parsedItems.reduce((s: number, i: { qty: number; unit_price: number }) => s + (i.qty * i.unit_price), 0);
+    await supabase.from("purchase_orders").insert({
+      project_id: PROJECT_ID,
+      supplier_name: poForm.supplier_name,
+      items: parsedItems,
+      total_amount: total,
+      status: "draft",
+      requested_by: user?.full_name ?? user?.email ?? "Unknown",
+      notes: poForm.notes,
+    });
+    setSaving(false);
+    setShowPOModal(false);
+    setPoForm({ supplier_name: "", items: "", notes: "" });
+    fetchData();
+  };
+
+  const handlePOApprove = async (id: string) => {
+    await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", id);
+    fetchData();
+  };
+
+  const lowStockCount = materials.filter(m => (m.current_stock ?? 0) < (m.min_stock ?? 0)).length;
+
+  return (
+    <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      {/* KPI row */}
+      <div className="grid grid-cols-3 gap-3">
+        <GlassCard className="p-3 text-center">
+          <Package size={14} className="text-aviva-gold mx-auto mb-1" />
+          <p className="text-lg font-bold text-aviva-text">{materials.length}</p>
+          <p className="text-[10px] text-aviva-secondary">รายการวัสดุ</p>
+        </GlassCard>
+        <GlassCard className="p-3 text-center">
+          <AlertTriangle size={14} className="text-yellow-400 mx-auto mb-1" />
+          <p className="text-lg font-bold text-yellow-400">{lowStockCount}</p>
+          <p className="text-[10px] text-aviva-secondary">สต๊อกต่ำ</p>
+        </GlassCard>
+        <GlassCard className="p-3 text-center">
+          <FileText size={14} className="text-blue-400 mx-auto mb-1" />
+          <p className="text-lg font-bold text-blue-400">{pos.filter(p => p.status === "pending_approval").length}</p>
+          <p className="text-[10px] text-aviva-secondary">รออนุมัติ PO</p>
+        </GlassCard>
+      </div>
+
+      {/* View tabs */}
+      <div className="flex gap-2">
+        {[{ k: "stock", l: "สต๊อกวัสดุ" }, { k: "po", l: "ใบสั่งซื้อ" }].map(({ k, l }) => (
+          <button key={k} onClick={() => setActiveView(k as "stock" | "po")}
+            className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
+              activeView === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+            )}>{l}</button>
+        ))}
+        {(user?.isManager || user?.isAdmin) && (
+          <button onClick={() => setShowPOModal(true)}
+            className="flex items-center gap-1 bg-aviva-gold/10 text-aviva-gold border border-aviva-gold/30 px-3 py-2 rounded-xl text-xs font-medium">
+            <Plus size={12} /> PO
+          </button>
+        )}
+      </div>
+
+      {/* Stock View */}
+      {activeView === "stock" && (
+        <div className="space-y-2">
+          {loading ? [1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-aviva-card/50 animate-pulse" />) :
+           materials.map(m => {
+            const st = stockStatus(m);
+            return (
+              <GlassCard key={m.id} className="p-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-aviva-card flex items-center justify-center flex-shrink-0">
+                    <Package size={16} className="text-aviva-gold" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-aviva-text font-medium truncate">{m.name}</p>
+                    <p className="text-[10px] text-aviva-secondary">
+                      สต๊อก: {m.current_stock ?? 0} {m.unit} · ขั้นต่ำ: {m.min_stock ?? 0} {m.unit}
+                    </p>
+                  </div>
+                  <span className={clsx("text-[10px] font-bold px-2 py-0.5 rounded-full", st.cls)}>{st.label}</span>
+                </div>
+              </GlassCard>
+            );
+          })}
+        </div>
+      )}
+
+      {/* PO View */}
+      {activeView === "po" && (
+        <div className="space-y-2">
+          {loading ? [1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-aviva-card/50 animate-pulse" />) :
+           pos.length === 0 ? (
+            <GlassCard className="p-8 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีใบสั่งซื้อ</p></GlassCard>
+           ) : pos.map(po => {
+            const stConf = poStatusLabel[po.status] ?? { label: po.status, cls: "bg-gray-500/20 text-gray-400" };
+            const isExpanded = expandedPO === po.id;
+            return (
+              <GlassCard key={po.id} className="p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-aviva-gold">{po.po_number ?? "—"}</span>
+                      <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full", stConf.cls)}>{stConf.label}</span>
+                    </div>
+                    <p className="text-sm text-aviva-text mt-0.5">{po.supplier_name}</p>
+                    <p className="text-[10px] text-aviva-secondary">โดย {po.requested_by} · ฿{(po.total_amount ?? 0).toLocaleString("th-TH")}</p>
+                  </div>
+                  <button onClick={() => setExpandedPO(isExpanded ? null : po.id)} className="text-aviva-secondary/50 mt-1">
+                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+                </div>
+                {isExpanded && Array.isArray(po.items) && (
+                  <div className="bg-aviva-bg rounded-xl p-2 space-y-1">
+                    {po.items.map((item, idx) => (
+                      <div key={idx} className="flex justify-between text-xs">
+                        <span className="text-aviva-secondary">{item.name} × {item.qty} {item.unit}</span>
+                        <span className="text-aviva-text">฿{(item.qty * item.unit_price).toLocaleString("th-TH")}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {po.status === "pending_approval" && (user?.isManager || user?.isAdmin) && (
+                  <button onClick={() => handlePOApprove(po.id)}
+                    className="w-full py-1.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
+                    <CheckCircle size={12} /> อนุมัติ PO
+                  </button>
+                )}
+              </GlassCard>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Create PO Modal */}
+      {showPOModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">สร้างใบสั่งซื้อ (PO)</h2>
+              <button onClick={() => setShowPOModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ชื่อผู้จำหน่าย *</label>
+                <input value={poForm.supplier_name} onChange={e => setPoForm(p => ({ ...p, supplier_name: e.target.value }))}
+                  placeholder="บ. วัสดุก่อสร้าง จก." className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">รายการวัสดุ *</label>
+                <textarea value={poForm.items} onChange={e => setPoForm(p => ({ ...p, items: e.target.value }))}
+                  placeholder={'[{"name":"เหล็กเส้น 12mm","qty":100,"unit":"เส้น","unit_price":85}]'}
+                  rows={3} className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60 resize-none" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <input value={poForm.notes} onChange={e => setPoForm(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="หมายเหตุเพิ่มเติม" className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+              </div>
+            </div>
+            <button onClick={handleCreatePO} disabled={saving || !poForm.supplier_name}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {saving ? "กำลังบันทึก..." : "สร้าง PO"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Payroll ──────────────────────────────────────────────────────────────────
+
+interface PayrollEmployee extends Employee {
+  commission_amount?: number;
+  sso?: number;
+  net?: number;
+}
+
+function PayrollContent() {
+  const user = useCurrentUser();
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [payslipEmp, setPayslipEmp] = useState<PayrollEmployee | null>(null);
+  const [specialIncomes, setSpecialIncomes] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    supabase.from("employees").select("*").eq("status", "active")
+      .order("department")
+      .then(({ data }) => { setEmployees((data as Employee[]) ?? []); setLoading(false); });
+  }, []);
+
+  const calcSSO = (base: number) => Math.min(base * 0.05, 750);
+  const calcCommission = (emp: Employee) => 0;
+
+  const calcPayroll = (emp: Employee): PayrollEmployee => {
+    const special = parseFloat(specialIncomes[emp.id] ?? "0") || 0;
+    const commission = calcCommission(emp);
+    const sso = calcSSO(emp.base_salary);
+    const gross = emp.base_salary + commission + special;
+    const tax = gross > 26000 ? Math.round((gross - 26000) * 0.05) : 0;
+    return { ...emp, commission_amount: commission, sso, net: gross - sso - tax };
+  };
+
+  const totalNetPayroll = employees.reduce((sum, emp) => sum + (calcPayroll(emp).net ?? 0), 0);
+
+  return (
+    <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <label className="text-xs text-aviva-secondary mb-1 block">เดือนที่คำนวณ</label>
+          <input type="month" value={month} onChange={e => setMonth(e.target.value)}
+            className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2.5 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+        </div>
+        <div className="text-right mt-4">
+          <p className="text-[10px] text-aviva-secondary">เงินเดือนรวมสุทธิ</p>
+          <p className="text-lg font-bold text-aviva-gold">฿{totalNetPayroll.toLocaleString("th-TH")}</p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {loading ? [1,2,3].map(i => <div key={i} className="h-20 rounded-xl bg-aviva-card/50 animate-pulse" />) :
+         employees.map(emp => {
+          const pr = calcPayroll(emp);
+          return (
+            <GlassCard key={emp.id} className="p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm text-aviva-text font-medium">{emp.full_name}</p>
+                  <p className="text-[10px] text-aviva-secondary">{emp.department} · {emp.position}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-aviva-gold">฿{(pr.net ?? 0).toLocaleString("th-TH")}</p>
+                  <p className="text-[10px] text-aviva-secondary">สุทธิ</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-1 text-[10px]">
+                <div className="bg-aviva-bg/50 rounded-lg p-1.5 text-center">
+                  <p className="text-aviva-secondary">เงินเดือน</p>
+                  <p className="text-aviva-text font-medium">฿{emp.base_salary.toLocaleString("th-TH")}</p>
+                </div>
+                <div className="bg-aviva-bg/50 rounded-lg p-1.5 text-center">
+                  <p className="text-aviva-secondary">ประกันสังคม</p>
+                  <p className="text-red-400 font-medium">-฿{(pr.sso ?? 0).toLocaleString("th-TH")}</p>
+                </div>
+                <div className="bg-aviva-bg/50 rounded-lg p-1.5 text-center">
+                  <p className="text-aviva-secondary">รายได้พิเศษ</p>
+                  <input type="number" value={specialIncomes[emp.id] ?? ""}
+                    onChange={e => setSpecialIncomes(p => ({ ...p, [emp.id]: e.target.value }))}
+                    placeholder="0"
+                    className="w-full text-center text-aviva-text bg-transparent outline-none text-[10px]" />
+                </div>
+              </div>
+              <button onClick={() => setPayslipEmp(pr)}
+                className="w-full py-1.5 bg-aviva-gold/10 text-aviva-gold border border-aviva-gold/20 rounded-xl text-xs font-medium flex items-center justify-center gap-1">
+                <Printer size={11} /> ดูสลิปเงินเดือน
+              </button>
+            </GlassCard>
+          );
+        })}
+      </div>
+
+      {/* Payslip Modal */}
+      {payslipEmp && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 print-area">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">สลิปเงินเดือน</h2>
+              <div className="flex items-center gap-2">
+                <button onClick={() => window.print()} className="text-xs text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg flex items-center gap-1">
+                  <Printer size={11} /> พิมพ์
+                </button>
+                <button onClick={() => setPayslipEmp(null)}><X size={18} className="text-aviva-secondary" /></button>
+              </div>
+            </div>
+            <div className="text-center border-b border-aviva-gold/20 pb-3">
+              <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA ONE</p>
+              <p className="text-xs text-aviva-secondary mt-0.5">สลิปเงินเดือนประจำเดือน {month}</p>
+            </div>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-aviva-secondary">ชื่อ-สกุล</span>
+                <span className="text-aviva-text font-medium">{payslipEmp.full_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-aviva-secondary">ตำแหน่ง</span>
+                <span className="text-aviva-text">{payslipEmp.position}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-aviva-secondary">แผนก</span>
+                <span className="text-aviva-text">{payslipEmp.department}</span>
+              </div>
+            </div>
+            <div className="border-t border-aviva-gold/10 pt-3 space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-aviva-secondary">เงินเดือนพื้นฐาน</span>
+                <span className="text-aviva-text">฿{payslipEmp.base_salary.toLocaleString("th-TH")}</span>
+              </div>
+              {(payslipEmp.commission_amount ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary">ค่าคอมมิชชั่น</span>
+                  <span className="text-green-400">+฿{(payslipEmp.commission_amount ?? 0).toLocaleString("th-TH")}</span>
+                </div>
+              )}
+              {(specialIncomes[payslipEmp.id] && parseFloat(specialIncomes[payslipEmp.id]) > 0) && (
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary">รายได้พิเศษ</span>
+                  <span className="text-green-400">+฿{parseFloat(specialIncomes[payslipEmp.id]).toLocaleString("th-TH")}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-red-400">
+                <span>หัก: ประกันสังคม (5%, สูงสุด ฿750)</span>
+                <span>-฿{(payslipEmp.sso ?? 0).toLocaleString("th-TH")}</span>
+              </div>
+              <div className="flex justify-between font-bold text-aviva-gold border-t border-aviva-gold/20 pt-2 mt-1">
+                <span>เงินได้สุทธิ</span>
+                <span>฿{(payslipEmp.net ?? 0).toLocaleString("th-TH")}</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-aviva-secondary/40 text-center">เอกสารนี้ออกโดยระบบ AVIVA ONE · {new Date().toLocaleDateString("th-TH")}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Tab Config ───────────────────────────────────────────────────────────────
 
-const TABS: { key: OfficeTab; label: string; managerOnly?: boolean }[] = [
+const TABS: { key: OfficeTab; label: string; managerOnly?: boolean; constructionOnly?: boolean }[] = [
   { key: "finance",     label: "การเงิน" },
   { key: "accounting",  label: "บัญชี" },
   { key: "marketing",   label: "การตลาด" },
   { key: "hr",          label: "บุคคล" },
   { key: "after-sales", label: "หลังการขาย" },
-  { key: "approvals",   label: "อนุมัติ", managerOnly: true },
+  { key: "approvals",   label: "อนุมัติ",   managerOnly: true },
+  { key: "materials",   label: "คลังวัสดุ", constructionOnly: true },
+  { key: "payroll",     label: "เงินเดือน", managerOnly: true },
 ];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -1735,7 +2120,12 @@ export default function OfficePage() {
   const user = useCurrentUser();
   const [activeTab, setActiveTab] = useState<OfficeTab>("finance");
 
-  const visibleTabs = TABS.filter(t => !t.managerOnly || user?.isManager || user?.isAdmin);
+  const isConstruction = user?.department === "ฝ่ายก่อสร้าง";
+  const visibleTabs = TABS.filter(t => {
+    if (t.managerOnly && !user?.isManager && !user?.isAdmin) return false;
+    if (t.constructionOnly && !isConstruction && !user?.isManager && !user?.isAdmin) return false;
+    return true;
+  });
 
   useEffect(() => {
     if (user?.department === "ฝ่ายบัญชี") setActiveTab("accounting");
@@ -1777,6 +2167,8 @@ export default function OfficePage() {
       {activeTab === "hr"          && <HRContent />}
       {activeTab === "after-sales" && <AfterSalesContent />}
       {activeTab === "approvals"   && <ApprovalsContent />}
+      {activeTab === "materials"   && <MaterialsContent />}
+      {activeTab === "payroll"     && <PayrollContent />}
     </div>
   );
 }

@@ -11,6 +11,7 @@ const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
 interface Document {
   id: string;
+  doc_number?: string;
   name: string;
   category: string;
   status: "pending" | "approved" | "rejected";
@@ -191,8 +192,15 @@ export default function DocumentsPage() {
                           <FolderOpen size={16} className="text-aviva-gold" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-aviva-text font-medium truncate">{doc.name}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            {doc.doc_number && (
+                              <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-md border border-aviva-gold/20 flex-shrink-0">
+                                {doc.doc_number}
+                              </span>
+                            )}
+                            <p className="text-sm text-aviva-text font-medium truncate">{doc.name}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
                             <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded-full", categoryStyle[doc.category])}>
                               {categoryTh[doc.category] ?? doc.category}
                             </span>
