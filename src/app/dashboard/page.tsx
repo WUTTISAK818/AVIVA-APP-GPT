@@ -10,9 +10,10 @@ import AIInsightPanel from "@/components/AIInsightPanel";
 import ProgressBar from "@/components/ProgressBar";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
+import CalendarWidget from "@/components/CalendarWidget";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { revenueData, aiInsights } from "@/lib/mock-data";
+import { revenueData } from "@/lib/mock-data";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -87,24 +88,22 @@ export default function DashboardPage() {
     });
   }, []);
 
-  const totalUnits = project?.total_units ?? 120;
-  const soldUnits = project?.sold_units ?? 73;
-  const available = project?.available_units ?? 47;
-  const revenue = project?.revenue_actual ?? 285_000_000;
-  const constructionProgress = project?.construction_progress ?? 68;
-  const selloutForecast = project?.sellout_forecast ?? "Q3 2026";
-  const selloutPct = Math.round((soldUnits / totalUnits) * 100);
+  const totalUnits = project?.total_units ?? 0;
+  const soldUnits = project?.sold_units ?? 0;
+  const available = project?.available_units ?? 0;
+  const revenue = project?.revenue_actual ?? 0;
+  const constructionProgress = project?.construction_progress ?? 0;
+  const selloutForecast = project?.sellout_forecast ?? "-";
+  const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
+  const noProjectData = !loading && project === null;
 
   return (
-    <div className="min-h-screen bg-aviva-bg">
+    <div className="min-h-screen bg-aviva-bg pb-24">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold bg-aviva-gold/20 text-aviva-gold border border-aviva-gold/30 px-1.5 py-0.5 rounded-md">V2.0</span>
-            </div>
+            <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
             </p>
@@ -129,17 +128,50 @@ export default function DashboardPage() {
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
-        {/* KPI Grid */}
-        <div>
-          <SectionHeader title="ภาพรวมโครงการ"
-            subtitle={loading ? "กำลังโหลด..." : "ข้อมูล Real-time จาก Supabase"} />
-          <div className="grid grid-cols-2 gap-3">
-            <KPICard icon={Home} label="ยูนิตทั้งหมด" value={`${totalUnits}`} />
-            <KPICard icon={Users} label="ขายแล้ว" value={`${soldUnits}`} change={5} highlight />
-            <KPICard icon={Package} label="ว่างอยู่" value={`${available}`} />
-            <KPICard icon={DollarSign} label="รายได้รวม" value={`฿${formatMillions(revenue)}`} change={8.7} />
-          </div>
-        </div>
+        {noProjectData ? (
+          <GlassCard className="p-6 text-center border border-aviva-gold/20">
+            <ShieldAlert size={28} className="text-aviva-secondary/40 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-aviva-text mb-1">ยังไม่มีข้อมูลโครงการ</p>
+            <p className="text-xs text-aviva-secondary mb-4">กรุณากรอกข้อมูลโครงการในหน้าตั้งค่า</p>
+            <Link href="/settings" className="inline-flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-4 py-2 rounded-xl">
+              <Settings size={12} /> ไปที่ตั้งค่า
+            </Link>
+          </GlassCard>
+        ) : (
+          <>
+            {/* KPI Grid */}
+            <div>
+              <SectionHeader title="ภาพรวมโครงการ"
+                subtitle={loading ? "กำลังโหลด..." : "ข้อมูล Real-time จาก Supabase"} />
+              <div className="grid grid-cols-2 gap-3">
+                <KPICard icon={Home} label="ยูนิตทั้งหมด" value={`${totalUnits}`} />
+                <KPICard icon={Users} label="ขายแล้ว" value={`${soldUnits}`} change={5} highlight />
+                <KPICard icon={Package} label="ว่างอยู่" value={`${available}`} />
+                <KPICard icon={DollarSign} label="รายได้รวม" value={`฿${formatMillions(revenue)}`} change={8.7} />
+              </div>
+            </div>
+
+            {/* Sellout Progress */}
+            <GlassCard className="p-4">
+              <SectionHeader title="ความคืบหน้าการขาย" subtitle={`คาดว่าจะขายหมด: ${selloutForecast}`} />
+              <ProgressBar label={`ขายแล้ว ${soldUnits} / ${totalUnits} ยูนิต`} value={selloutPct} />
+              <div className="flex items-center justify-between mt-3">
+                <div className="text-center">
+                  <p className="text-lg font-bold text-aviva-gold">{selloutPct}%</p>
+                  <p className="text-xs text-aviva-secondary">ขายแล้ว</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-aviva-text">{available}</p>
+                  <p className="text-xs text-aviva-secondary">ยูนิตว่าง</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-aviva-text">{constructionProgress}%</p>
+                  <p className="text-xs text-aviva-secondary">ก่อสร้างแล้ว</p>
+                </div>
+              </div>
+            </GlassCard>
+          </>
+        )}
 
         {/* Cross-Module Summary */}
         <div>
@@ -205,38 +237,49 @@ export default function DashboardPage() {
           </div>
         </GlassCard>
 
-        {/* Sellout Progress */}
-        <GlassCard className="p-4">
-          <SectionHeader title="ความคืบหน้าการขาย" subtitle={`คาดว่าจะขายหมด: ${selloutForecast}`} />
-          <ProgressBar label={`ขายแล้ว ${soldUnits} / ${totalUnits} ยูนิต`} value={selloutPct} />
-          <div className="flex items-center justify-between mt-3">
-            <div className="text-center">
-              <p className="text-lg font-bold text-aviva-gold">{selloutPct}%</p>
-              <p className="text-xs text-aviva-secondary">ขายแล้ว</p>
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-bold text-aviva-text">{available}</p>
-              <p className="text-xs text-aviva-secondary">ยูนิตว่าง</p>
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-bold text-aviva-text">{constructionProgress}%</p>
-              <p className="text-xs text-aviva-secondary">ก่อสร้างแล้ว</p>
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-bold text-green-400">+8.7%</p>
-              <p className="text-xs text-aviva-secondary">Cashflow</p>
-            </div>
-          </div>
-        </GlassCard>
-
         {/* AI Insights */}
         <div>
           <SectionHeader title="AI Executive Insights" subtitle="วิเคราะห์โดย AVIVA AI" />
           <div className="space-y-3">
-            {aiInsights.slice(0, 3).map((insight) => (
-              <AIInsightPanel key={insight.id} {...insight} />
-            ))}
+            {stats.pendingApprovals > 0 && (
+              <AIInsightPanel
+                type="warning"
+                priority="high"
+                title={`มี ${stats.pendingApprovals} รายการรออนุมัติ`}
+                message="กรุณาตรวจสอบและอนุมัติรายการทางการเงินที่ค้างอยู่เพื่อไม่ให้กระทบการดำเนินงาน"
+              />
+            )}
+            {stats.pendingClaims > 0 && (
+              <AIInsightPanel
+                type="alert"
+                priority="medium"
+                title={`มี ${stats.pendingClaims} คลิมหลังการขายรอดำเนินการ`}
+                message="ควรติดตามและดำเนินการภายใน 7 วันเพื่อรักษาความพึงพอใจของลูกค้า"
+              />
+            )}
+            {stats.totalLeads > 0 && (
+              <AIInsightPanel
+                type="info"
+                priority="low"
+                title={`มี Leads ทั้งหมด ${stats.totalLeads} ราย`}
+                message="ติดตาม Lead อย่างสม่ำเสมอเพื่อเพิ่มอัตราการปิดการขาย"
+              />
+            )}
+            {stats.pendingApprovals === 0 && stats.pendingClaims === 0 && stats.totalLeads === 0 && (
+              <AIInsightPanel
+                type="success"
+                priority="low"
+                title="ทุกระบบทำงานปกติ"
+                message="ไม่มีรายการค้างดำเนินการในขณะนี้"
+              />
+            )}
           </div>
+        </div>
+
+        {/* Calendar */}
+        <div>
+          <SectionHeader title="ปฏิทินกิจกรรม" subtitle="กดวันเพื่อดู/เพิ่มกิจกรรม" />
+          <CalendarWidget />
         </div>
       </div>
     </div>
