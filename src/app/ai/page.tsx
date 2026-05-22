@@ -55,7 +55,7 @@ export default function AIPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-aviva-bg">
+    <div className="flex flex-col bg-aviva-bg" style={{ height: "calc(100dvh - 56px)" }}>
       {/* Header */}
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center gap-3">
