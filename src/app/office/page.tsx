@@ -161,7 +161,7 @@ function FinanceContent() {
       )}
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <GlassCard className="p-3 text-center">
           <TrendingUp size={16} className="text-green-400 mx-auto mb-1" />
           <p className="text-base font-bold text-green-400">{formatM(totalIncome || 0)}</p>
@@ -176,6 +176,11 @@ function FinanceContent() {
           <DollarSign size={16} className="text-aviva-gold mx-auto mb-1" />
           <p className="text-base font-bold text-aviva-gold">{formatM(netCashflow || 0)}</p>
           <p className="text-[10px] text-aviva-secondary mt-0.5">Net Cashflow</p>
+        </GlassCard>
+        <GlassCard className="p-3 text-center">
+          <ClipboardCheck size={16} className="text-yellow-400 mx-auto mb-1" />
+          <p className="text-base font-bold text-yellow-400">{pendingApprovals}</p>
+          <p className="text-[10px] text-aviva-secondary mt-0.5">รออนุมัติ</p>
         </GlassCard>
       </div>
 
@@ -409,20 +414,21 @@ function AccountingContent() {
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-3">
-        <GlassCard className="p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingDown size={14} className="text-red-400" />
-            <span className="text-xs text-aviva-secondary">รายจ่ายทั้งหมด</span>
-          </div>
-          <p className="text-lg font-bold text-red-400">฿{formatThb(totalExpense)}</p>
+      <div className="grid grid-cols-3 gap-2">
+        <GlassCard className="p-3 text-center">
+          <Receipt size={14} className="text-aviva-gold mx-auto mb-1" />
+          <p className="text-lg font-bold text-aviva-text">{receipts.length}</p>
+          <p className="text-[10px] text-aviva-secondary mt-0.5">ใบเสร็จทั้งหมด</p>
         </GlassCard>
-        <GlassCard className="p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp size={14} className="text-green-400" />
-            <span className="text-xs text-aviva-secondary">รายรับทั้งหมด</span>
-          </div>
-          <p className="text-lg font-bold text-green-400">฿{formatThb(totalIncome)}</p>
+        <GlassCard className="p-3 text-center">
+          <TrendingUp size={14} className="text-green-400 mx-auto mb-1" />
+          <p className="text-lg font-bold text-green-400">{formatM(totalIncome)}</p>
+          <p className="text-[10px] text-aviva-secondary mt-0.5">รายรับทั้งหมด</p>
+        </GlassCard>
+        <GlassCard className="p-3 text-center">
+          <TrendingDown size={14} className="text-red-400 mx-auto mb-1" />
+          <p className="text-lg font-bold text-red-400">{formatM(totalExpense)}</p>
+          <p className="text-[10px] text-aviva-secondary mt-0.5">รายจ่ายทั้งหมด</p>
         </GlassCard>
       </div>
 
@@ -932,20 +938,21 @@ function HRContent() {
       {/* Summary */}
       <div className="grid grid-cols-3 gap-2">
         <GlassCard className="p-3 text-center">
+          <Users size={14} className="text-aviva-gold mx-auto mb-1" />
           <p className="text-xl font-bold text-aviva-text">{active.length}</p>
           <p className="text-[10px] text-aviva-secondary mt-0.5">พนักงานทั้งหมด</p>
         </GlassCard>
         <GlassCard className="p-3 text-center">
-          <p className="text-xl font-bold text-aviva-gold">
-            {employees.filter(e => e.department === "ฝ่ายขาย").length}
-          </p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">ฝ่ายขาย</p>
+          <Clock size={14} className="text-yellow-400 mx-auto mb-1" />
+          <p className="text-xl font-bold text-yellow-400">{probationAlerts.length}</p>
+          <p className="text-[10px] text-aviva-secondary mt-0.5">ทดลองงาน</p>
         </GlassCard>
-        <GlassCard className="p-3 text-center">
-          <p className="text-xl font-bold text-orange-400">
-            {employees.filter(e => e.department === "ฝ่ายก่อสร้าง").length}
+        <GlassCard gold className="p-3 text-center">
+          <DollarSign size={14} className="text-aviva-gold mx-auto mb-1" />
+          <p className="text-xl font-bold text-aviva-gold">
+            {formatM(active.reduce((s, e) => s + Number(e.base_salary), 0))}
           </p>
-          <p className="text-[10px] text-aviva-secondary mt-0.5">ก่อสร้าง</p>
+          <p className="text-[10px] text-aviva-secondary mt-0.5">เงินเดือนรวม</p>
         </GlassCard>
       </div>
 
