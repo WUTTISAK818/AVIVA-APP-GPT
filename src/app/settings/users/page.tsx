@@ -71,7 +71,7 @@ export default function UsersPage() {
       const data = await res.json();
       if (data.users) setUsers(data.users);
     } catch {
-      // silently fail
+      // silently fail — edge function may not be ready
     }
     setLoading(false);
   }
@@ -228,7 +228,6 @@ export default function UsersPage() {
                         {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
                     </div>
-  
                   </div>
                 </>
               )}

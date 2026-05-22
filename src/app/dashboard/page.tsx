@@ -97,6 +97,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-aviva-bg">
+      {/* Header */}
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div>
@@ -165,7 +166,7 @@ export default function DashboardPage() {
                     <span className="text-xs text-yellow-400">รออนุมัติการเงิน: <b>{stats.pendingApprovals}</b></span>
                   )}
                   {stats.pendingClaims > 0 && (
-                    <span className="text-xs text-yellow-400">แจ้ซ่อมรอดำเนินการ: <b>{stats.pendingClaims}</b></span>
+                    <span className="text-xs text-yellow-400">แจ้งซ่อมรอดำเนินการ: <b>{stats.pendingClaims}</b></span>
                   )}
                   {stats.pendingDocs > 0 && (
                     <span className="text-xs text-yellow-400">เอกสารรออนุมัติ: <b>{stats.pendingDocs}</b></span>
