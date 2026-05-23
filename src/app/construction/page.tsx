@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Plus, X, ClipboardList, Pencil, Bug, Printer, ChevronRight, ChevronDown, Camera, HardHat, FileText } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -15,6 +15,7 @@ const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
 type HouseStatus = "complete" | "on-track" | "delayed";
 type Tab = "units" | "reports" | "defects" | "installments";
+type Part = "inspect" | "daily";
 
 interface House {
   id: string;
@@ -78,7 +79,7 @@ const instStatusConfig: Record<string, { label: string; color: string }> = {
 };
 
 const INSTALLMENT_NAMES = [
-  "งวด 1 — งานฐานราก",
+  "งวด 1 — งานฝานราก",
   "งวด 2 — งานเสาและคาน",
   "งวด 3 — งานพื้นชั้น 1",
   "งวด 4 — งานผนังชั้น 1",
@@ -107,6 +108,7 @@ export default function ConstructionPage() {
   const [defects, setDefects] = useState<Defect[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | HouseStatus>("all");
+  const [part, setPart] = useState<Part>("inspect");
   const [tab, setTab] = useState<Tab>("units");
   const [showModal, setShowModal] = useState(false);
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
@@ -117,7 +119,6 @@ export default function ConstructionPage() {
   const [showDefectModal, setShowDefectModal] = useState(false);
   const [defectHouse, setDefectHouse] = useState<House | null>(null);
 
-  // Installment state
   const [instHouse, setInstHouse] = useState<House | null>(null);
   const [installments, setInstallments] = useState<Installment[]>([]);
   const [instTasks, setInstTasks] = useState<InstTask[]>([]);
@@ -288,25 +289,43 @@ export default function ConstructionPage() {
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
-      <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
+      <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-3">
         <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-aviva-text">การก่อสร้าง</h1>
-              <p className="text-xs text-aviva-secondary mt-0.5">
-                {loading ? "กำลังโหลด..." : `${houses.length} ยูนิต · แตะยูนิตเพื่อบันทึก`}
-              </p>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <HardHat size={20} className="text-aviva-gold" />
+              <div>
+                <h1 className="text-xl font-bold text-aviva-text">การก่อสร้าง</h1>
+                <p className="text-xs text-aviva-secondary">
+                  {loading ? "กำลังโหลด..." : `${houses.length} ยูนิต`}
+                </p>
+              </div>
             </div>
-            <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" }); setShowModal(true); }}
-              className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-              <Plus size={14} /> รายงาน
+            {part === "daily" && (
+              <button onClick={() => { setSelectedHouse(null); setEditingReport(null); setForm({ house_id: "", work_detail: "", progress: "", issue: "", new_status: "on-track" }); setShowModal(true); }}
+                className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+                <Plus size={14} /> รายงาน
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => { setPart("inspect"); setTab("units"); }}
+              className={clsx("flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border transition-all",
+                part === "inspect" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+              )}>
+              <HardHat size={13} /> ตรวจบ้าน
+            </button>
+            <button onClick={() => { setPart("daily"); setTab("reports"); }}
+              className={clsx("flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border transition-all",
+                part === "daily" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+              )}>
+              <FileText size={13} /> งานรายวัน
             </button>
           </div>
         </div>
       </div>
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
-        {/* AI Insights */}
         {delayedCount > 0 && (
           <AIInsightPanel type="alert" priority="high"
             title={`มี ${delayedCount} ยูนิตล่าช้ากว่าแผน`}
@@ -341,19 +360,32 @@ export default function ConstructionPage() {
           })}
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {([
-            ["units", "ยูนิต"],
-            ["reports", `รายงาน (${reports.length})`],
-            ["defects", `Defects${openDefects > 0 ? ` (${openDefects})` : ""}`],
-            ["installments", "งวดงาน"],
-          ] as [Tab, string][]).map(([k, l]) => (
-            <button key={k} onClick={() => { if (k !== "installments") setTab(k); else if (instHouse) setTab("installments"); }}
-              className={clsx("flex-shrink-0 flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
-                tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
-              )}>{l}</button>
-          ))}
-        </div>
+        {part === "inspect" && (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {([
+              ["units", "ยูนิต"],
+              ["installments", "งวดงาน"],
+            ] as [Tab, string][]).map(([k, l]) => (
+              <button key={k} onClick={() => { if (k !== "installments") setTab(k); else if (instHouse) setTab("installments"); }}
+                className={clsx("flex-shrink-0 flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
+                  tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+                )}>{l}</button>
+            ))}
+          </div>
+        )}
+        {part === "daily" && (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {([
+              ["reports", `รายงาน (${reports.length})`],
+              ["defects", `Defects${openDefects > 0 ? ` (${openDefects})` : ""}`],
+            ] as [Tab, string][]).map(([k, l]) => (
+              <button key={k} onClick={() => setTab(k as Tab)}
+                className={clsx("flex-shrink-0 flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
+                  tab === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+                )}>{l}</button>
+            ))}
+          </div>
+        )}
 
         {tab === "units" && (
           <>
@@ -581,10 +613,9 @@ export default function ConstructionPage() {
         )}
       </div>
 
-      {/* Defect Modal */}
       {showDefectModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">บันทึก Defect{defectHouse ? ` — ${defectHouse.house_number}` : ""}</h2>
               <button onClick={() => { setShowDefectModal(false); setDefectHouse(null); }}><X size={20} className="text-aviva-secondary" /></button>
@@ -622,10 +653,9 @@ export default function ConstructionPage() {
         </div>
       )}
 
-      {/* Report Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">
                 {editingReport ? "แก้ไขรายงาน" : selectedHouse ? `บันทึกรายงาน — ${selectedHouse.house_number}` : "บันทึกรายงานประจำวัน"}
@@ -683,10 +713,9 @@ export default function ConstructionPage() {
         </div>
       )}
 
-      {/* Edit House Modal */}
       {showHouseEditModal && editingHouse && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 max-h-[85vh] overflow-y-auto mb-14">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">แก้ไขยูนิต — {editingHouse.house_number}</h2>
               <button onClick={() => { setShowHouseEditModal(false); setEditingHouse(null); }}><X size={20} className="text-aviva-secondary" /></button>
