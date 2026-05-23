@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   description: "ระบบบริหารจัดการ AVIVA ONE",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AVIVA ONE" },
+  icons: { apple: "/apple-touch-icon.png", icon: "/icon-192.png" },
   other: { "mobile-web-app-capable": "yes" },
 };
 
