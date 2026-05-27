@@ -79,7 +79,7 @@ const instStatusConfig: Record<string, { label: string; color: string }> = {
 };
 
 const INSTALLMENT_NAMES = [
-  "งวด 1 — งานฝานราก",
+  "งวด 1 — งานฐานราก",
   "งวด 2 — งานเสาและคาน",
   "งวด 3 — งานพื้นชั้น 1",
   "งวด 4 — งานผนังชั้น 1",
@@ -183,6 +183,16 @@ export default function ConstructionPage() {
     setInstallments((prev) => prev.map((i) => i.id === inst.id ? { ...i, status: newStatus } : i));
     const statusLabels: Record<string, string> = { in_review: "ส่งตรวจสอบแล้ว", approved: "อนุมัติงวดแล้ว", paid: "บันทึกจ่ายเงินแล้ว" };
     const notifType: Record<string, "info" | "approval" | "success"> = { in_review: "info", approved: "approval", paid: "success" };
+    if (newStatus === "in_review") {
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Installment_Review",
+        source_doc_index: `${inst.name}${instHouse ? ` — ${instHouse.house_number}` : ""}`,
+        source_record_id: inst.id,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        amount: inst.amount ?? null,
+      });
+    }
     await createNotification({
       type: notifType[newStatus] ?? "info",
       title: `${inst.name} — ${statusLabels[newStatus] ?? newStatus}`,
@@ -192,6 +202,54 @@ export default function ConstructionPage() {
   };
 
   const printInstallments = () => { window.print(); };
+
+  const printDailyReport = () => {
+    const dateStr = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+    const rows = reports.map((r) => {
+      const house = houses.find((h) => h.id === r.house_id);
+      const d = new Date(r.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+      return `<tr>
+        <td>${d}</td>
+        <td>${house?.house_number ?? "—"}</td>
+        <td>${r.work_detail ?? "—"}</td>
+        <td style="text-align:center">${r.progress ?? 0}%</td>
+        <td style="color:#c0392b">${r.issue ?? "—"}</td>
+      </tr>`;
+    }).join("");
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
+    <title>รายงานรายวัน — ฝ่ายก่อสร้าง</title>
+    <style>
+      body { font-family: 'Sarabun', Arial, sans-serif; margin: 32px; font-size: 13px; color: #1a1a1a; }
+      h1 { font-size: 20px; font-weight: bold; margin-bottom: 4px; }
+      .meta { font-size: 12px; color: #555; margin-bottom: 18px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th { background: #1E4A35; color: #D4AF37; padding: 8px 10px; text-align: left; font-size: 12px; }
+      td { padding: 7px 10px; border-bottom: 1px solid #e0e0e0; font-size: 12px; vertical-align: top; }
+      tr:nth-child(even) td { background: #f9f9f9; }
+      .footer { margin-top: 32px; display: flex; justify-content: flex-end; font-size: 12px; }
+      .sig { text-align: center; width: 180px; }
+      .sig-line { border-top: 1px solid #555; margin: 40px 0 4px; }
+      @media print { button { display: none; } }
+    </style></head><body>
+    <h1>รายงานประจำวัน — ฝ่ายก่อสร้าง</h1>
+    <div class="meta">วันที่พิมพ์: ${dateStr} &nbsp;|&nbsp; จำนวน ${reports.length} รายการ</div>
+    <table>
+      <thead><tr><th>วันที่</th><th>ยูนิต</th><th>รายละเอียดงาน</th><th>คืบหน้า</th><th>ปัญหา/หมายเหตุ</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="footer">
+      <div class="sig">
+        <div class="sig-line"></div>
+        <div>ผู้จัดทำรายงาน</div>
+        <div style="color:#555;font-size:11px;margin-top:4px">(...............................................)</div>
+      </div>
+    </div>
+    <script>window.onload=()=>window.print();<\/script>
+    </body></html>`);
+    w.document.close();
+  };
 
   const uploadTaskPhoto = async (task: InstTask, file: File) => {
     const ext = file.name.split(".").pop() ?? "jpg";
@@ -448,7 +506,14 @@ export default function ConstructionPage() {
         {tab === "reports" && (
           <div className="space-y-3">
             <PeriodFilter period={rptPeriod} onChange={(p, s, e) => { setRptPeriod(p); setRptStart(s); setRptEnd(e); }} />
-            <SectionHeader title="รายงานประจำวัน" subtitle="กรองตามช่วงเวลา" />
+            <div className="flex items-center justify-between">
+              <SectionHeader title="รายงานประจำวัน" subtitle="กรองตามช่วงเวลา" />
+              {reports.length > 0 && (
+                <button onClick={printDailyReport} className="flex items-center gap-1.5 text-[11px] text-aviva-gold border border-aviva-gold/30 px-2 py-1.5 rounded-xl">
+                  <Printer size={12} /> พิมพ์รายงาน
+                </button>
+              )}
+            </div>
             {reports.length === 0 ? (
               <GlassCard className="p-8 text-center">
                 <ClipboardList size={28} className="text-aviva-secondary/30 mx-auto mb-2" />
