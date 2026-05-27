@@ -6,7 +6,7 @@ import {
   LayoutGrid, Users, HardHat,
   Briefcase, Megaphone, UserCheck, Receipt,
   Package, Wrench, ShieldCheck, Gavel, CalendarDays, BarChart3, Wallet,
-  Settings, MoreHorizontal, X,
+  Settings, X,
 } from "lucide-react";
 import clsx from "clsx";
 import { useCurrentUser } from "@/lib/user-context";
@@ -69,7 +69,7 @@ export default function BottomNav() {
       {showMore && (
         <div className="fixed bottom-[56px] left-0 right-0 z-[46] bg-aviva-card border-t border-aviva-gold/20 rounded-t-2xl shadow-2xl px-4 pt-4 pb-6">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-bold text-aviva-secondary tracking-wide">เมนูเพิ่มเติม</p>
+            <p className="text-xs font-bold text-aviva-secondary tracking-wide">เมนูตั้งค่า</p>
             <button onClick={() => setShowMore(false)}>
               <X size={16} className="text-aviva-secondary" />
             </button>
@@ -117,8 +117,8 @@ export default function BottomNav() {
               "flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-xl transition-all active:scale-95",
               showMore || activeMore ? "text-aviva-gold" : "text-aviva-secondary/60"
             )}>
-            <MoreHorizontal size={20} strokeWidth={showMore || activeMore ? 2.5 : 1.5} />
-            <span className="text-[10px] font-medium">เพิ่มเติม</span>
+            <Settings size={20} strokeWidth={showMore || activeMore ? 2.5 : 1.5} />
+            <span className="text-[10px] font-medium">ตั้งค่า</span>
             {activeMore && !showMore && <span className="w-1 h-1 rounded-full bg-aviva-gold" />}
           </button>
         </div>
