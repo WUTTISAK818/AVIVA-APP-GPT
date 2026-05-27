@@ -25,7 +25,7 @@ export async function getHouses() {
     .from("houses")
     .select("*")
     .eq("project_id", PROJECT_ID)
-    .order("house_number");
+    .order("plot_number");
   return data ?? [];
 }
 

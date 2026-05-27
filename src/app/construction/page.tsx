@@ -139,7 +139,7 @@ export default function ConstructionPage() {
     if (rptStart) rptQ = rptQ.gte("created_at", rptStart);
     if (rptEnd) rptQ = rptQ.lte("created_at", rptEnd + "T23:59:59");
     Promise.all([
-      supabase.from("houses").select("*").eq("project_id", PROJECT_ID).order("house_number"),
+      supabase.from("houses").select("*").eq("project_id", PROJECT_ID).order("plot_number"),
       rptQ.order("created_at", { ascending: false }).limit(limit),
       supabase.from("defects").select("*").order("reported_at", { ascending: false }).limit(50),
     ]).then(([hRes, rRes, dRes]) => {
