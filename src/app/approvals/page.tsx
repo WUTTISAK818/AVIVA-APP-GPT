@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ClipboardCheck, X, CheckCircle, XCircle, ShieldAlert } from "lucide-react";
+import { BadgeCheck, X, CheckCircle, XCircle, ShieldAlert, Clock, History } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
@@ -92,7 +92,10 @@ export default function ApprovalsPage() {
     <div className="min-h-screen bg-aviva-bg pb-24">
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto">
-          <h1 className="text-xl font-bold text-aviva-text">ระบบอนุมัติ</h1>
+          <div className="flex items-center gap-2">
+            <BadgeCheck size={22} className="text-aviva-gold" />
+            <h1 className="text-xl font-bold text-aviva-text">ระบบอนุมัติ</h1>
+          </div>
           <p className="text-xs text-aviva-secondary mt-0.5">
             {loading ? "กำลังโหลด..." : `รออนุมัติ ${pendingCount} รายการ`}
           </p>
@@ -118,7 +121,7 @@ export default function ApprovalsPage() {
             [1, 2, 3].map((i) => <div key={i} className="h-24 rounded-2xl bg-aviva-card/50 animate-pulse" />)
           ) : filtered.length === 0 ? (
             <GlassCard className="p-8 text-center">
-              <ClipboardCheck size={28} className="text-aviva-secondary/30 mx-auto mb-2" />
+              <BadgeCheck size={28} className="text-aviva-secondary/30 mx-auto mb-2" />
               <p className="text-aviva-secondary text-sm">ไม่มีรายการในหมวดนี้</p>
             </GlassCard>
           ) : (

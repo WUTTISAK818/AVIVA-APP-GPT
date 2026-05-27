@@ -313,7 +313,7 @@ export default function ConstructionPage() {
               className={clsx("flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border transition-all",
                 part === "inspect" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
               )}>
-              <HardHat size={13} /> ตรวจบ้าน
+              <HardHat size={13} /> ตรวจงวดงาน
             </button>
             <button onClick={() => { setPart("daily"); setTab("reports"); }}
               className={clsx("flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border transition-all",

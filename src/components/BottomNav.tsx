@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutGrid, Users, HardHat,
-  Sparkles, Briefcase,
+  Briefcase,
   Settings, MoreHorizontal, X,
 } from "lucide-react";
 import clsx from "clsx";
@@ -13,7 +13,6 @@ import { useCurrentUser } from "@/lib/user-context";
 const OFFICE_DEPTS = ["ฝ่ายการเงิน", "ฝ่ายบัญชี", "ฝ่ายบุคคล", "ฝ่ายการตลาด", "ฝ่ายหลังการขาย"];
 
 const MORE_ITEMS = [
-  { href: "/ai",       label: "AI",    icon: Sparkles, adminOnly: false },
   { href: "/settings", label: "ตั้งค่า", icon: Settings, adminOnly: false },
 ];
 
