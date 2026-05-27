@@ -37,6 +37,12 @@ export default function GuardQueuePage() {
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
 
+  useEffect(() => {
+    if (!feedback) return;
+    const t = setTimeout(() => setFeedback(null), 3000);
+    return () => clearTimeout(t);
+  }, [feedback]);
+
   const load = useCallback(() => {
     const since = new Date();
     since.setHours(0, 0, 0, 0);
@@ -112,16 +118,17 @@ export default function GuardQueuePage() {
             className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-3 rounded-xl disabled:opacity-50">
             <LogIn size={14} /> เช็คอิน
           </button>
-          <button onClick={() => setScanOpen(true)}
+          <button onClick={() => setScanOpen(true)} aria-label="สแกน QR"
             className="flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/30 text-aviva-gold text-sm font-bold px-4 py-3 rounded-xl">
-            <Camera size={14} />
+            <Camera size={16} />
+            <span className="hidden md:inline">สแกน</span>
           </button>
         </div>
         {feedback && (
-          <div className={clsx("text-xs px-3 py-2 rounded-lg flex items-center gap-1.5",
+          <div className={clsx("text-sm px-4 py-3 rounded-xl flex items-center gap-2",
             feedback.ok ? "bg-green-500/10 text-green-300" : "bg-red-500/10 text-red-300"
           )}>
-            {feedback.ok ? <CheckCircle size={12} /> : <AlertCircle size={12} />} {feedback.msg}
+            {feedback.ok ? <CheckCircle size={16} /> : <AlertCircle size={16} />} {feedback.msg}
           </div>
         )}
       </GlassCard>
@@ -161,14 +168,14 @@ export default function GuardQueuePage() {
                     <StatusPill status={p.status} />
                     {isPending && (
                       <button onClick={() => verify(p.id)} disabled={busy}
-                        className="text-[11px] flex items-center gap-1 bg-aviva-gold text-aviva-bg font-bold px-3 py-1.5 rounded-lg disabled:opacity-50">
-                        <LogIn size={11} /> เช็คอิน
+                        className="text-sm flex items-center gap-1.5 bg-aviva-gold text-aviva-bg font-bold px-4 py-2.5 rounded-xl disabled:opacity-50">
+                        <LogIn size={14} /> เช็คอิน
                       </button>
                     )}
                     {isActive && (
                       <button onClick={() => checkout(p.id)} disabled={busy}
-                        className="text-[11px] flex items-center gap-1 bg-aviva-card border border-aviva-gold/30 text-aviva-gold font-bold px-3 py-1.5 rounded-lg disabled:opacity-50">
-                        <LogOut size={11} /> เช็คเอ้าท์
+                        className="text-sm flex items-center gap-1.5 bg-aviva-card border border-aviva-gold/30 text-aviva-gold font-bold px-4 py-2.5 rounded-xl disabled:opacity-50">
+                        <LogOut size={14} /> เช็คเอ้าท์
                       </button>
                     )}
                   </div>
@@ -193,5 +200,5 @@ function StatusPill({ status }: { status: string }) {
     blocked:     { l: "ถูกบล็อก",         c: "bg-red-500/20 text-red-400 border-red-500/40" },
   };
   const m = map[status] ?? map.pending;
-  return <span className={clsx("text-[10px] px-2 py-0.5 rounded-full border", m.c)}>{m.l}</span>;
+  return <span className={clsx("text-xs px-2.5 py-1 rounded-full border", m.c)}>{m.l}</span>;
 }

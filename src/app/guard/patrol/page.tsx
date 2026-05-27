@@ -32,6 +32,12 @@ export default function PatrolPage() {
   const [scanOpen, setScanOpen] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
 
+  useEffect(() => {
+    if (!feedback) return;
+    const t = setTimeout(() => setFeedback(null), 3000);
+    return () => clearTimeout(t);
+  }, [feedback]);
+
   const load = () => {
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     Promise.all([
@@ -85,14 +91,14 @@ export default function PatrolPage() {
 
       <button onClick={() => setScanOpen(true)}
         className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2">
-        <Camera size={14} /> เปิดกล้องสแกน
+        <Camera size={18} /> เปิดกล้องสแกน
       </button>
 
       {feedback && (
-        <div className={clsx("text-xs px-3 py-2 rounded-xl flex items-center gap-1.5",
+        <div className={clsx("text-sm px-4 py-3 rounded-xl flex items-center gap-2",
           feedback.ok ? "bg-green-500/10 text-green-300" : "bg-red-500/10 text-red-300"
         )}>
-          {feedback.ok ? <CheckCircle size={12} /> : <AlertCircle size={12} />} {feedback.msg}
+          {feedback.ok ? <CheckCircle size={16} /> : <AlertCircle size={16} />} {feedback.msg}
         </div>
       )}
 
@@ -109,17 +115,17 @@ export default function PatrolPage() {
           {checkpoints.map(cp => {
             const last = lastVisited(cp.id);
             return (
-              <GlassCard key={cp.id} className="p-4">
-                <div className="flex items-start justify-between gap-3">
+              <GlassCard key={cp.id} className="p-4 min-h-[80px]">
+                <div className="flex items-start justify-between gap-3 h-full">
                   <div className="flex items-start gap-3">
-                    <MapPin size={16} className="text-aviva-gold mt-0.5" />
+                    <MapPin size={18} className="text-aviva-gold mt-0.5 shrink-0" />
                     <div>
                       <p className="text-sm font-semibold text-aviva-text">{cp.name_th}</p>
                       <p className="text-xs text-aviva-secondary">{cp.location_note ?? "—"}</p>
-                      {last && <p className="text-[11px] text-green-300 mt-1">เดินตรวจล่าสุด {fmt(last.scanned_at)}</p>}
+                      {last && <p className="text-xs text-green-300 mt-1">เดินตรวจล่าสุด {fmt(last.scanned_at)}</p>}
                     </div>
                   </div>
-                  <span className={clsx("text-[10px] px-2 py-1 rounded-full border",
+                  <span className={clsx("text-xs px-2.5 py-1 rounded-full border shrink-0",
                     last ? "bg-green-500/15 text-green-300 border-green-500/30" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
                   )}>
                     {last ? "เดินแล้ว" : "ยังไม่เดิน"}

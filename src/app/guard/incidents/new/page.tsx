@@ -50,9 +50,9 @@ export default function NewIncidentPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Link href="/guard/incidents" className="text-aviva-secondary hover:text-aviva-gold">
-          <ArrowLeft size={18} />
+      <div className="flex items-center gap-1 -ml-2">
+        <Link href="/guard/incidents" aria-label="กลับ" className="p-2 text-aviva-secondary hover:text-aviva-gold">
+          <ArrowLeft size={20} />
         </Link>
         <h1 className="text-2xl font-bold text-aviva-text">แจ้งเหตุการณ์ใหม่</h1>
       </div>
@@ -87,8 +87,8 @@ export default function NewIncidentPage() {
         </Field>
         <Field label="รายละเอียด">
           <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-            placeholder="อธิบายเหตุการณ์"
-            rows={4}
+            placeholder="อธิบายเหตุ + เวลา + พยาน (ถ้ามี)"
+            rows={6}
             className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
         </Field>
         <Field label="สถานที่">
@@ -97,9 +97,9 @@ export default function NewIncidentPage() {
             className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
         </Field>
         <Field label="ภาพถ่าย">
-          <label className="flex items-center gap-2 text-xs px-3 py-3 rounded-xl border border-aviva-gold/20 bg-aviva-bg cursor-pointer">
-            <Camera size={14} className="text-aviva-gold" />
-            <span className="flex-1 text-aviva-text">{files.length ? `เลือก ${files.length} รูป` : "ถ่ายรูปหลักฐาน"}</span>
+          <label className="flex items-center gap-2 text-sm px-4 py-3.5 rounded-xl border border-aviva-gold/20 bg-aviva-bg cursor-pointer">
+            <Camera size={18} className="text-aviva-gold" />
+            <span className="flex-1 text-aviva-text">{files.length ? `เลือก ${files.length} รูป` : "เลือกไฟล์หรือถ่ายเลย"}</span>
             <input type="file" accept="image/*" capture="environment" multiple className="hidden"
               onChange={e => setFiles(Array.from(e.target.files ?? []))} />
           </label>
@@ -117,7 +117,7 @@ export default function NewIncidentPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

@@ -110,8 +110,8 @@ export default function GuardParcelsPage() {
           <p className="text-sm text-aviva-secondary mt-1">รับเข้านิติฯ · ส่งคืนเจ้าของ</p>
         </div>
         <button onClick={() => { setForm(emptyForm); setShowForm(true); }}
-          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-          <Plus size={14} /> ลงพัสดุใหม่
+          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
+          <Plus size={16} /> ลงพัสดุใหม่
         </button>
       </div>
 
@@ -142,10 +142,10 @@ export default function GuardParcelsPage() {
                 <div className="flex items-start gap-3">
                   {p.photo_url ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={p.photo_url} alt="parcel" className="w-16 h-16 rounded-xl object-cover border border-aviva-gold/20" />
+                    <img src={p.photo_url} alt="parcel" className="w-16 h-16 md:w-24 md:h-24 rounded-xl object-cover border border-aviva-gold/20 shrink-0" />
                   ) : (
-                    <div className="w-16 h-16 rounded-xl bg-aviva-bg flex items-center justify-center border border-aviva-gold/10">
-                      <Package size={20} className="text-aviva-secondary/50" />
+                    <div className="w-16 h-16 md:w-24 md:h-24 rounded-xl bg-aviva-bg flex items-center justify-center border border-aviva-gold/10 shrink-0">
+                      <Package size={24} className="text-aviva-secondary/50" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
@@ -159,8 +159,8 @@ export default function GuardParcelsPage() {
                   </div>
                   {!picked && (
                     <button onClick={() => { setPickupOpen(p.id); setPickupBy(""); }}
-                      className="text-[11px] flex items-center gap-1 bg-aviva-gold text-aviva-bg font-bold px-3 py-1.5 rounded-lg">
-                      <CheckCircle size={11} /> ส่งคืน
+                      className="text-sm flex items-center gap-1.5 bg-aviva-gold text-aviva-bg font-bold px-4 py-2.5 rounded-xl shrink-0">
+                      <CheckCircle size={14} /> ส่งคืน
                     </button>
                   )}
                 </div>
@@ -172,7 +172,7 @@ export default function GuardParcelsPage() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14 md:mb-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-aviva-text">ลงพัสดุใหม่</h2>
               <button onClick={() => setShowForm(false)}><X size={20} className="text-aviva-secondary" /></button>
@@ -202,9 +202,9 @@ export default function GuardParcelsPage() {
               </Field>
             </div>
             <Field label="รูปพัสดุ (ถ่ายเลย)">
-              <label className="flex items-center gap-2 text-xs px-3 py-3 rounded-xl border border-aviva-gold/20 bg-aviva-bg cursor-pointer">
-                <Camera size={14} className="text-aviva-gold" />
-                <span className="flex-1 text-aviva-text">{form.photoFile ? form.photoFile.name : "เลือก/ถ่ายรูป"}</span>
+              <label className="flex items-center gap-2 text-sm px-4 py-3.5 rounded-xl border border-aviva-gold/20 bg-aviva-bg cursor-pointer">
+                <Camera size={18} className="text-aviva-gold" />
+                <span className="flex-1 text-aviva-text">{form.photoFile ? form.photoFile.name : "เลือกไฟล์หรือถ่ายเลย"}</span>
                 <input type="file" accept="image/*" capture="environment" className="hidden"
                   onChange={e => setForm({ ...form, photoFile: e.target.files?.[0] ?? null })} />
               </label>
@@ -219,7 +219,7 @@ export default function GuardParcelsPage() {
 
       {pickupOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14 md:mb-6">
             <h2 className="text-lg font-bold text-aviva-text">ส่งคืนพัสดุ</h2>
             <Field label="ผู้รับ (ชื่อ-นามสกุล) *">
               <input type="text" value={pickupBy} onChange={e => setPickupBy(e.target.value)}
@@ -242,7 +242,7 @@ export default function GuardParcelsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

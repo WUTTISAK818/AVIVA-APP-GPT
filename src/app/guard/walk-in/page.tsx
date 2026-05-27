@@ -73,9 +73,9 @@ export default function GuardWalkInPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Link href="/guard" className="text-aviva-secondary hover:text-aviva-gold">
-          <ArrowLeft size={18} />
+      <div className="flex items-center gap-1 -ml-2">
+        <Link href="/guard" aria-label="กลับ" className="p-2 text-aviva-secondary hover:text-aviva-gold">
+          <ArrowLeft size={20} />
         </Link>
         <h1 className="text-2xl font-bold text-aviva-text">Walk-in</h1>
       </div>
@@ -89,7 +89,7 @@ export default function GuardWalkInPage() {
       {result ? (
         <GlassCard className="p-6 text-center space-y-4">
           <div className="inline-block">
-            <QRCodeDisplay value={result.qr_token} size={220} caption={`#${result.qr_token.slice(0, 8)}`} />
+            <QRCodeDisplay value={result.qr_token} size={280} caption={`#${result.qr_token.slice(0, 8)}`} />
           </div>
           <p className="text-sm text-aviva-text">บัตรผ่านพร้อมแล้ว · เก็บ token ไว้สำหรับติดตาม</p>
           <div className="flex gap-2 justify-center">
@@ -147,7 +147,7 @@ export default function GuardWalkInPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-xs text-aviva-secondary mb-1 block">{label}</label>
+      <label className="text-sm text-aviva-secondary mb-1.5 block">{label}</label>
       {children}
     </div>
   );

@@ -46,8 +46,8 @@ export default function GuardIncidentsPage() {
           <p className="text-sm text-aviva-secondary mt-1">{loading ? "กำลังโหลด…" : `${items.length} เหตุการณ์ที่บันทึก`}</p>
         </div>
         <Link href="/guard/incidents/new"
-          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-          <Plus size={14} /> แจ้งเหตุใหม่
+          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-sm font-bold px-4 py-2.5 rounded-xl">
+          <Plus size={16} /> แจ้งเหตุใหม่
         </Link>
       </div>
 
@@ -73,7 +73,7 @@ export default function GuardIncidentsPage() {
                       {i.category ?? "—"} · {fmt(i.occurred_at)} · {STATUS_TH[i.status] ?? i.status}
                     </p>
                   </div>
-                  <span className={clsx("text-[10px] px-2 py-0.5 rounded-full border", sev.c)}>{sev.l}</span>
+                  <span className={clsx("text-xs px-2.5 py-1 rounded-full border shrink-0", sev.c)}>{sev.l}</span>
                 </div>
               </GlassCard>
             );

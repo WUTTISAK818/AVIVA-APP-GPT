@@ -19,10 +19,10 @@ export default function GuardShell({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="min-h-screen bg-aviva-bg">
-      <header className="sticky top-0 z-40 bg-aviva-nav border-b border-aviva-gold/20 px-4 py-3">
+      <header className="sticky top-0 z-40 bg-aviva-nav border-b border-aviva-gold/20 px-4 md:px-6 py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={18} className="text-aviva-gold" />
+            <ShieldCheck size={20} className="text-aviva-gold" />
             <span className="font-bold text-aviva-text">AVIVA Plus · รปภ.</span>
           </div>
           <nav className="flex items-center gap-1 overflow-x-auto">
@@ -31,12 +31,12 @@ export default function GuardShell({ children }: { children: React.ReactNode }) 
               return (
                 <Link key={href} href={href}
                   className={clsx(
-                    "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all",
+                    "flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
                     active
                       ? "bg-aviva-gold/15 text-aviva-gold border border-aviva-gold/40"
                       : "text-aviva-secondary/70 hover:text-aviva-secondary"
                   )}>
-                  <Icon size={14} />
+                  <Icon size={16} />
                   {label}
                 </Link>
               );
@@ -44,12 +44,12 @@ export default function GuardShell({ children }: { children: React.ReactNode }) 
           </nav>
           <button
             onClick={() => supabase.auth.signOut()}
-            className="flex items-center gap-1 text-xs text-aviva-secondary/70 hover:text-aviva-gold">
-            <LogOut size={14} /> ออก
+            className="flex items-center gap-1.5 text-sm text-aviva-secondary/70 hover:text-aviva-gold px-2 py-2">
+            <LogOut size={16} /> ออก
           </button>
         </div>
       </header>
-      <main className="max-w-5xl mx-auto px-4 py-5">{children}</main>
+      <main className="max-w-5xl mx-auto px-4 md:px-6 py-5">{children}</main>
     </div>
   );
 }
