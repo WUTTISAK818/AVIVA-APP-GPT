@@ -250,6 +250,52 @@ export default function DashboardPage() {
           </GlassCard>
         )}
 
+        {/* รายการรออนุมัติ — รายละเอียดของแต่ละรายการ */}
+        {pendingApprovals > 0 && (
+          <GlassCard className="p-4 border border-yellow-500/30 bg-yellow-500/[0.03]">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-yellow-400/15 border border-yellow-400/30 flex items-center justify-center">
+                  <ClipboardList size={14} className="text-yellow-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-aviva-text">รายการรออนุมัติ</p>
+                  <p className="text-[10px] text-aviva-secondary">{pendingApprovals} รายการต้องตัดสินใจ</p>
+                </div>
+              </div>
+              <Link href="/approvals" className="flex items-center gap-0.5 text-xs text-aviva-gold font-medium">
+                ดูทั้งหมด <ChevronRight size={12} />
+              </Link>
+            </div>
+            <div className="space-y-2">
+              {approvalItems.slice(0, 3).map((item, i) => (
+                <button key={i} onClick={() => setAlertModal("approvals")}
+                  className="w-full text-left bg-aviva-bg rounded-xl px-3 py-2.5 hover:bg-aviva-bg/70 active:scale-[0.99] transition-all">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-aviva-text truncate">{String(item.description ?? "—")}</p>
+                      <p className="text-[10px] text-aviva-secondary mt-0.5">
+                        {String(item.module ?? "")}
+                        {item.requested_by ? ` · ${String(item.requested_by)}` : ""}
+                      </p>
+                    </div>
+                    {Number(item.amount ?? 0) > 0 && (
+                      <span className="text-xs font-bold text-aviva-gold flex-shrink-0">
+                        ฿{Number(item.amount).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+              {pendingApprovals > 3 && (
+                <Link href="/approvals" className="block text-center text-[11px] text-aviva-secondary hover:text-aviva-gold py-1">
+                  + อีก {pendingApprovals - 3} รายการ
+                </Link>
+              )}
+            </div>
+          </GlassCard>
+        )}
+
         {/* ===== PROJECT OVERVIEW ===== */}
         <div>
           <p className="text-xs font-semibold text-aviva-secondary/70 uppercase tracking-wider mb-2">ภาพรวมโครงการ</p>
