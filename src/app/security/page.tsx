@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ShieldCheck, UserCheck, AlertTriangle, DoorOpen, UserPlus,
   FileBarChart, Ban, Camera, Megaphone, Receipt, Wrench,
+  Wallet, Gavel, Building, BarChart3, Building2,
 } from "lucide-react";
 import KPICard from "@/components/KPICard";
 import GlassCard from "@/components/GlassCard";
@@ -19,18 +20,28 @@ interface OverviewCounts {
   residents: number;
 }
 
-const QUICK_LINKS = [
-  { href: "/security/residents",         label: "ลูกบ้าน",            desc: "เชิญลูกบ้าน · จัดการทะเบียนรถ",       icon: UserPlus },
-  { href: "/security/visitor-logs",      label: "บันทึกผู้มาเยือน",   desc: "ค้นย้อนหลัง · กรองตามเจ้าบ้าน",        icon: UserCheck },
-  { href: "/security/gate-events",       label: "เหตุการณ์ประตู",     desc: "ฟีดสด ALPR · ดูประวัติเข้า-ออก",       icon: DoorOpen },
-  { href: "/security/gates",             label: "ควบคุมประตู",         desc: "เปิดประตูด้วยมือ · มี audit log",      icon: ShieldCheck },
-  { href: "/security/announcements",     label: "ประกาศ",              desc: "ออกประกาศแจ้งลูกบ้าน · ปักหมุดได้",   icon: Megaphone },
-  { href: "/security/bills",             label: "บิลค่าส่วนกลาง",      desc: "ออกบิล · รับสลิป · ยืนยันชำระ",         icon: Receipt },
-  { href: "/security/service-requests",  label: "งานแจ้งซ่อม",         desc: "รับงานจากลูกบ้าน · มอบหมาย",            icon: Wrench },
+const SECURITY_LINKS = [
+  { href: "/security/residents",         label: "ลูกบ้าน",            desc: "เชิญลูกบ้าน · จัดการทะเบียนรถ",      icon: UserPlus },
+  { href: "/security/visitor-logs",      label: "บันทึกผู้มาเยือน",   desc: "ค้นย้อนหลัง · กรองตามเจ้าบ้าน",       icon: UserCheck },
+  { href: "/security/gate-events",       label: "เหตุการณ์ประตู",     desc: "ฟีดสด ALPR · ดูประวัติ",              icon: DoorOpen },
+  { href: "/security/gates",             label: "ควบคุมประตู",         desc: "เปิดประตู · webhook setup",            icon: ShieldCheck },
   { href: "/security/incidents",         label: "เหตุการณ์",           desc: "งานค้าง · งานปิดแล้ว",                  icon: AlertTriangle },
-  { href: "/security/blacklist",         label: "แบล็คลิสต์",          desc: "ทะเบียนรถ/ชื่อบุคคลที่ห้ามเข้า",       icon: Ban },
+  { href: "/security/blacklist",         label: "แบล็คลิสต์",          desc: "ทะเบียน/บุคคลห้ามเข้า",                icon: Ban },
+  { href: "/security/mock-alpr",         label: "ทดสอบ ALPR",          desc: "ยิง event จำลอง",                      icon: Camera },
+];
+const FINANCE_LINKS = [
+  { href: "/security/treasury",          label: "บัญชีนิติฯ",         desc: "ผังบัญชี · double-entry · งบประมาณ", icon: Wallet },
+  { href: "/security/bills",             label: "บิลค่าส่วนกลาง",      desc: "ออกบิล · รับสลิป · ยืนยัน",            icon: Receipt },
+];
+const GOVERNANCE_LINKS = [
+  { href: "/security/governance",        label: "Governance hub",       desc: "ประชุม · มติ · เอกสาร · กรรมการ",      icon: Gavel },
+  { href: "/security/polls",             label: "โพล",                   desc: "สำรวจความคิดเห็น",                      icon: BarChart3 },
+];
+const OPS_LINKS = [
+  { href: "/security/announcements",     label: "ประกาศ",              desc: "ออกประกาศ · ปักหมุด",                   icon: Megaphone },
+  { href: "/security/service-requests",  label: "งานแจ้งซ่อม",         desc: "รับงานจากลูกบ้าน",                       icon: Wrench },
+  { href: "/security/vendors",           label: "Vendor",              desc: "ผู้รับเหมา / ผู้ให้บริการ",              icon: Building },
   { href: "/security/reports",           label: "รายงานรายเดือน",     desc: "พิมพ์ส่งผู้บริหาร",                     icon: FileBarChart },
-  { href: "/security/mock-alpr",         label: "ทดสอบ ALPR",          desc: "ยิง event จำลองเพื่อ demo",            icon: Camera },
 ];
 
 interface Row { hour: string; entry: number; exit: number }
@@ -96,8 +107,8 @@ export default function SecurityOverviewPage() {
           <div className="flex items-center gap-2">
             <ShieldCheck size={20} className="text-aviva-gold" />
             <div>
-              <h1 className="text-xl font-bold text-aviva-text">ความปลอดภัย</h1>
-              <p className="text-xs text-aviva-secondary mt-0.5">AVIVA Plus · ภาพรวมสำหรับผู้บริหารโครงการ</p>
+              <h1 className="text-xl font-bold text-aviva-text">ผู้บริหารโครงการ</h1>
+              <p className="text-xs text-aviva-secondary mt-0.5">AVIVA Plus · ความปลอดภัย · บัญชี · บริหาร</p>
             </div>
           </div>
         </div>
@@ -108,7 +119,7 @@ export default function SecurityOverviewPage() {
           <KPICard icon={UserCheck} label="ผู้มาเยือนวันนี้" value={loading ? "…" : String(counts.visitorsToday)} />
           <KPICard icon={DoorOpen} label="ประตู (24 ชม.)" value={loading ? "…" : String(counts.gateEvents24h)} />
           <KPICard icon={AlertTriangle} label="เหตุการณ์เปิดอยู่" value={loading ? "…" : String(counts.incidentsOpen)} highlight={counts.incidentsOpen > 0} />
-          <KPICard icon={UserPlus} label="ลูกบ้านในระบบ" value={loading ? "…" : String(counts.residents)} />
+          <KPICard icon={Building2} label="ลูกบ้านในระบบ" value={loading ? "…" : String(counts.residents)} />
         </div>
 
         <div>
@@ -126,26 +137,36 @@ export default function SecurityOverviewPage() {
           </GlassCard>
         </div>
 
-        <div>
-          <SectionHeader title="เมนูจัดการ" subtitle="เลือกหัวข้อเพื่อดูรายละเอียด" />
-          <div className="grid grid-cols-1 gap-2">
-            {QUICK_LINKS.map(({ href, label, desc, icon: Icon }) => (
-              <Link key={href} href={href}>
-                <GlassCard className="p-4 active:scale-[0.98] transition-all">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-xl bg-aviva-gold/10">
-                      <Icon size={18} className="text-aviva-gold" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-aviva-text">{label}</p>
-                      <p className="text-xs text-aviva-secondary mt-0.5">{desc}</p>
-                    </div>
-                  </div>
-                </GlassCard>
-              </Link>
-            ))}
-          </div>
-        </div>
+        <LinksSection title="บัญชี &amp; การเงิน" items={FINANCE_LINKS} />
+        <LinksSection title="การบริหารนิติบุคคล" items={GOVERNANCE_LINKS} />
+        <LinksSection title="งานปฏิบัติการ" items={OPS_LINKS} />
+        <LinksSection title="ความปลอดภัย" items={SECURITY_LINKS} />
+      </div>
+    </div>
+  );
+}
+
+interface LinkItem { href: string; label: string; desc: string; icon: typeof ShieldCheck }
+function LinksSection({ title, items }: { title: string; items: LinkItem[] }) {
+  return (
+    <div>
+      <SectionHeader title={title} />
+      <div className="grid grid-cols-1 gap-2">
+        {items.map(({ href, label, desc, icon: Icon }) => (
+          <Link key={href} href={href}>
+            <GlassCard className="p-4 active:scale-[0.98] transition-all">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-xl bg-aviva-gold/10">
+                  <Icon size={18} className="text-aviva-gold" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-aviva-text">{label}</p>
+                  <p className="text-xs text-aviva-secondary mt-0.5">{desc}</p>
+                </div>
+              </div>
+            </GlassCard>
+          </Link>
+        ))}
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutGrid, Users, HardHat,
   Briefcase, Megaphone, UserCheck, Receipt,
-  Package, Wrench, ShieldCheck,
+  Package, Wrench, ShieldCheck, Gavel, CalendarDays, BarChart3, Wallet,
   Settings, MoreHorizontal, X,
 } from "lucide-react";
 import clsx from "clsx";
@@ -32,8 +32,12 @@ export default function BottomNav() {
     { href: "/community/bills",            label: "บิล",        icon: Receipt },
   ];
   const residentMoreItems = [
-    { href: "/community/service-requests", label: "แจ้งซ่อม",   icon: Wrench },
-    { href: "/settings",                   label: "ตั้งค่า",    icon: Settings },
+    { href: "/community/service-requests", label: "แจ้งซ่อม",     icon: Wrench },
+    { href: "/community/governance",       label: "นิติบุคคล",     icon: Gavel },
+    { href: "/community/facilities",       label: "จองส่วนกลาง",   icon: CalendarDays },
+    { href: "/community/polls",            label: "โพล",           icon: BarChart3 },
+    { href: "/community/finance",          label: "งบโปร่งใส",    icon: Wallet },
+    { href: "/settings",                   label: "ตั้งค่า",       icon: Settings },
   ];
 
   // Staff/admin navigation
