@@ -25,6 +25,7 @@ export default function SettingsPage() {
   const [projectForm, setProjectForm] = useState<ProjectForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.isAdmin) return;
@@ -44,19 +45,27 @@ export default function SettingsPage() {
   async function saveProject() {
     if (!projectForm) return;
     setSaving(true);
-    await supabase.from("projects").upsert({
-      id: PROJECT_ID,
+    setSaveError(null);
+    const { error } = await supabase.from("projects").update({
       project_name: projectForm.project_name,
       total_units: Number(projectForm.total_units),
       sold_units: Number(projectForm.sold_units),
-      available_units: Number(projectForm.available_units),
+      available_units: Number(projectForm.total_units) - Number(projectForm.sold_units),
       revenue_target: Number(projectForm.revenue_target),
       construction_progress: Number(projectForm.construction_progress),
       sellout_forecast: projectForm.sellout_forecast,
-    });
+    }).eq("id", PROJECT_ID);
     setSaving(false);
-    setSavedOk(true);
-    setTimeout(() => setSavedOk(false), 2500);
+    if (error) {
+      setSaveError("บันทึกไม่สำเร็จ: " + error.message);
+    } else {
+      setSavedOk(true);
+      setProjectForm(prev => prev ? {
+        ...prev,
+        available_units: String(Number(prev.total_units) - Number(prev.sold_units)),
+      } : prev);
+      setTimeout(() => setSavedOk(false), 2500);
+    }
   }
 
   const themeOptions = [
@@ -159,7 +168,6 @@ export default function SettingsPage() {
                 {([
                   ["total_units", "จำนวนยูนิตทั้งหมด", "number"],
                   ["sold_units", "ยูนิตที่ขายแล้ว", "number"],
-                  ["available_units", "ยูนิตว่าง", "number"],
                   ["construction_progress", "ความคืบหน้าก่อสร้าง (%)", "number"],
                   ["revenue_target", "เป้ารายได้ (บาท)", "number"],
                   ["sellout_forecast", "คาดว่าขายหมด", "text"],
@@ -175,7 +183,18 @@ export default function SettingsPage() {
                     />
                   </div>
                 ))}
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">ยูนิตว่าง (คำนวณอัตโนมัติ)</label>
+                  <div className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-lg px-3 py-2 text-sm text-aviva-secondary">
+                    {Number(projectForm.total_units) - Number(projectForm.sold_units)}
+                  </div>
+                </div>
               </div>
+              {saveError && (
+                <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                  {saveError}
+                </p>
+              )}
               <button
                 onClick={saveProject}
                 disabled={saving}
@@ -191,7 +210,7 @@ export default function SettingsPage() {
         {/* Version */}
         <div className="pt-2 pb-4 text-center space-y-1">
           <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA ONE</p>
-          <p className="text-[11px] text-aviva-secondary/60">Version 2.7.2</p>
+          <p className="text-[11px] text-aviva-secondary/60">Version 2.9.1</p>
           <p className="text-[10px] text-aviva-secondary/30">Built with ❤️ by AVIVA Team</p>
         </div>
       </div>

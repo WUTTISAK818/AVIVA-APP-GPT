@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell, X, CheckCheck, AlertCircle, Info, CheckCircle, FileText } from "lucide-react";
+import { Bell, X, CheckCheck, AlertCircle, Info, CheckCircle, FileText, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { supabase } from "@/lib/supabase";
 
@@ -34,7 +35,17 @@ function timeAgo(ts: string): string {
   return `${Math.floor(hrs / 24)} วันที่แล้ว`;
 }
 
+function getNotifHref(n: Notification): string | null {
+  if (n.type === "approval") return "/approvals";
+  if (n.type === "claim") return "/office";
+  if (n.type === "document") return "/office";
+  if (n.from_dept === "ฝ่ายขาย") return "/crm";
+  if (n.type === "success" || n.type === "info") return "/crm";
+  return null;
+}
+
 export default function NotificationBell() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -85,6 +96,18 @@ export default function NotificationBell() {
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
   };
 
+  const handleNotifClick = async (n: Notification) => {
+    if (!n.is_read) await markRead(n.id);
+    const href = getNotifHref(n);
+    if (href) { setOpen(false); router.push(href); }
+  };
+
+  const clearRead = async () => {
+    await supabase.from("notifications").delete()
+      .eq("project_id", PROJECT_ID).eq("is_read", true);
+    setNotifications((prev) => prev.filter((n) => !n.is_read));
+  };
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -116,6 +139,11 @@ export default function NotificationBell() {
                   <CheckCheck size={11} /> อ่านทั้งหมด
                 </button>
               )}
+              {notifications.some(n => n.is_read) && (
+                <button onClick={clearRead} className="flex items-center gap-1 text-[10px] text-aviva-secondary hover:text-red-400 transition-colors">
+                  <Trash2 size={11} /> ลบที่อ่านแล้ว
+                </button>
+              )}
               <button onClick={() => setOpen(false)}>
                 <X size={14} className="text-aviva-secondary" />
               </button>
@@ -142,13 +170,15 @@ export default function NotificationBell() {
               notifications.map((n) => {
                 const tc = TYPE_CONFIG[n.type] ?? TYPE_CONFIG["info"];
                 const { Icon } = tc;
+                const hasLink = !!getNotifHref(n);
                 return (
                   <button
                     key={n.id}
-                    onClick={() => markRead(n.id)}
+                    onClick={() => handleNotifClick(n)}
                     className={clsx(
                       "w-full text-left px-4 py-3 flex items-start gap-3 transition-all hover:bg-aviva-gold/5",
-                      !n.is_read && "bg-aviva-gold/5 border-l-2 border-aviva-gold"
+                      !n.is_read && "bg-aviva-gold/5 border-l-2 border-aviva-gold",
+                      hasLink && "cursor-pointer"
                     )}
                   >
                     <div className={clsx("w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5", tc.bg)}>

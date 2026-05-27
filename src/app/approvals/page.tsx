@@ -1,17 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BadgeCheck, X, CheckCircle, XCircle, ShieldAlert, Clock, History } from "lucide-react";
+import { BadgeCheck, X, CheckCircle, XCircle, ShieldAlert, Clock } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/lib/user-context";
 import { useRouter } from "next/navigation";
+import { createNotification } from "@/lib/notify";
 
 interface ApprovalLog {
   approval_id: string;
   source_doc_index: string;
+  source_record_id: string | null;
   workflow_type: string;
   current_approver_role: string;
   action_taken: string;
@@ -19,7 +21,24 @@ interface ApprovalLog {
   approver_email: string | null;
   rejection_comment: string | null;
   amount: number | null;
+  created_at: string;
 }
+
+const DEPT_BY_WORKFLOW: Record<string, string> = {
+  Material_Purchase: "ฝ่ายก่อสร้าง",
+  Finance_Approval: "ฝ่ายการเงิน",
+  Installment_Review: "ฝ่ายก่อสร้าง",
+  Leave_Request: "ฝ่ายบุคคล",
+  Document_Approval: "ฝ่ายออฟฟิศ",
+};
+
+const WORKFLOW_LABEL: Record<string, string> = {
+  Material_Purchase: "ขออนุมัติจัดซื้อวัสดุ",
+  Finance_Approval: "ขออนุมัติรายจ่าย",
+  Installment_Review: "ตรวจสอบงวดงาน",
+  Leave_Request: "ขออนุมัติการลา",
+  Document_Approval: "ขออนุมัติเอกสาร",
+};
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `฿${(n / 1_000_000).toFixed(1)}M`;
@@ -63,25 +82,71 @@ export default function ApprovalsPage() {
 
   const pendingCount = logs.filter((l) => l.action_taken === "Pending").length;
 
+  const cascadeApprove = async (log: ApprovalLog) => {
+    if (!log.source_record_id) return;
+    if (log.workflow_type === "Installment_Review") {
+      await supabase.from("contractor_installments").update({ status: "approved" }).eq("id", log.source_record_id);
+    } else if (log.workflow_type === "Material_Purchase") {
+      await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
+    } else if (log.workflow_type === "Document_Approval") {
+      await supabase.from("documents").update({ status: "approved" }).eq("id", log.source_record_id);
+    }
+  };
+
+  const cascadeReject = async (log: ApprovalLog) => {
+    if (!log.source_record_id) return;
+    if (log.workflow_type === "Installment_Review") {
+      await supabase.from("contractor_installments").update({ status: "pending" }).eq("id", log.source_record_id);
+    } else if (log.workflow_type === "Material_Purchase") {
+      await supabase.from("purchase_orders").update({ status: "draft" }).eq("id", log.source_record_id);
+    } else if (log.workflow_type === "Document_Approval") {
+      await supabase.from("documents").update({ status: "rejected" }).eq("id", log.source_record_id);
+    }
+  };
+
   const handleApprove = async (id: string) => {
     setSaving(true);
+    const log = logs.find(l => l.approval_id === id);
     await supabase.from("approval_logs").update({
       action_taken: "Approved",
       action_timestamp: new Date().toISOString(),
       approver_email: user?.email,
     }).eq("approval_id", id);
+    if (log) {
+      await cascadeApprove(log);
+      const dept = DEPT_BY_WORKFLOW[log.workflow_type] ?? "ระบบ";
+      await createNotification({
+        type: "success",
+        title: `อนุมัติแล้ว — ${log.source_doc_index}`,
+        message: `${WORKFLOW_LABEL[log.workflow_type] ?? log.workflow_type}${log.amount ? ` ฿${Number(log.amount).toLocaleString()}` : ""} ได้รับการอนุมัติแล้ว`,
+        from_dept: dept,
+        to_dept: dept,
+      });
+    }
     setSaving(false);
     fetchLogs();
   };
 
   const handleReject = async (id: string) => {
     setSaving(true);
+    const log = logs.find(l => l.approval_id === id);
     await supabase.from("approval_logs").update({
       action_taken: "Rejected",
       action_timestamp: new Date().toISOString(),
       approver_email: user?.email,
       rejection_comment: rejectComment,
     }).eq("approval_id", id);
+    if (log) {
+      await cascadeReject(log);
+      const dept = DEPT_BY_WORKFLOW[log.workflow_type] ?? "ระบบ";
+      await createNotification({
+        type: "info",
+        title: `ปฏิเสธ — ${log.source_doc_index}`,
+        message: `${WORKFLOW_LABEL[log.workflow_type] ?? log.workflow_type} ถูกปฏิเสธ${rejectComment ? `: ${rejectComment}` : ""}`,
+        from_dept: dept,
+        to_dept: dept,
+      });
+    }
     setSaving(false);
     setRejectingId(null);
     setRejectComment("");
@@ -93,7 +158,7 @@ export default function ApprovalsPage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center gap-2">
-            <BadgeCheck size={22} className="text-aviva-gold" />
+            <BadgeCheck size={20} className="text-aviva-gold" />
             <h1 className="text-xl font-bold text-aviva-text">ระบบอนุมัติ</h1>
           </div>
           <p className="text-xs text-aviva-secondary mt-0.5">
@@ -137,12 +202,24 @@ export default function ApprovalsPage() {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-aviva-text mt-0.5">{log.workflow_type}</p>
-                    <p className="text-xs text-aviva-secondary">ผู้อนุมัติ: {log.current_approver_role}</p>
-                    {log.action_timestamp && (
+                    <p className="text-sm text-aviva-text mt-0.5">{WORKFLOW_LABEL[log.workflow_type] ?? log.workflow_type}</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <p className="text-xs text-aviva-secondary">ผู้อนุมัติ: {log.current_approver_role}</p>
+                      {DEPT_BY_WORKFLOW[log.workflow_type] && (
+                        <span className="text-[10px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">
+                          {DEPT_BY_WORKFLOW[log.workflow_type]}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Clock size={9} className="text-aviva-secondary/50" />
                       <p className="text-[10px] text-aviva-secondary/60">
-                        {new Date(log.action_timestamp).toLocaleDateString("th-TH")}
+                        ส่งเมื่อ {new Date(log.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                        {log.action_timestamp && ` · อัปเดต ${new Date(log.action_timestamp).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}`}
                       </p>
+                    </div>
+                    {log.approver_email && log.action_taken !== "Pending" && (
+                      <p className="text-[10px] text-aviva-secondary/60 mt-0.5">โดย: {log.approver_email}</p>
                     )}
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -152,7 +229,7 @@ export default function ApprovalsPage() {
                       log.action_taken === "Approved" ? "bg-green-500/20 text-green-400" :
                       "bg-red-500/20 text-red-400"
                     )}>
-                      {log.action_taken === "Pending" ? "รออนุมัติ" : log.action_taken === "Approved" ? "อนุมัติแล้ว" : "ปฏิเสธ"}
+                      {log.action_taken === "Pending" ? "รออนุมัติ" : log.action_taken === "Approved" ? "✓ อนุมัติ" : "✗ ปฏิเสธ"}
                     </span>
                   </div>
                 </div>
