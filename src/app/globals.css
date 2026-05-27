@@ -11,9 +11,15 @@
   --font-sans: var(--font-geist-sans);
 }
 
+html {
+  font-size: 17px;
+  overflow-x: hidden;
+}
+
 body {
   background-color: var(--color-aviva-bg);
   color: var(--color-aviva-text);
+  overflow-x: hidden;
 }
 
 /* Day / light theme overrides */
