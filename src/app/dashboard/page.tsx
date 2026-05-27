@@ -46,6 +46,13 @@ function fmtDate() {
 export default function DashboardPage() {
   const user = useCurrentUser();
   const router = useRouter();
+
+  // Residents land here after sign-in but the dashboard is staff-only.
+  // Send them to the community announcements feed instead.
+  useEffect(() => {
+    if (user?.isResident) router.replace("/community/announcements");
+  }, [user, router]);
+
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<{ month: string; income: number; expense: number }[]>([]);

@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, UserCheck, AlertTriangle, DoorOpen, UserPlus, FileBarChart, Ban, Camera, Megaphone, Receipt, Wrench } from "lucide-react";
+import {
+  ShieldCheck, UserCheck, AlertTriangle, DoorOpen, UserPlus,
+  FileBarChart, Ban, Camera, Megaphone, Receipt, Wrench,
+} from "lucide-react";
 import KPICard from "@/components/KPICard";
 import GlassCard from "@/components/GlassCard";
 import SectionHeader from "@/components/SectionHeader";
+import GateTrafficChart from "@/components/security/GateTrafficChart";
 import { supabase } from "@/lib/supabase";
 
 interface OverviewCounts {
@@ -29,11 +33,14 @@ const QUICK_LINKS = [
   { href: "/security/mock-alpr",         label: "ทดสอบ ALPR",          desc: "ยิง event จำลองเพื่อ demo",            icon: Camera },
 ];
 
+interface Row { hour: string; entry: number; exit: number }
+
 export default function SecurityOverviewPage() {
   const [counts, setCounts] = useState<OverviewCounts>({
     visitorsToday: 0, gateEvents24h: 0, incidentsOpen: 0, residents: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [chart, setChart] = useState<Row[]>([]);
 
   useEffect(() => {
     const todayStart = new Date();
@@ -49,13 +56,35 @@ export default function SecurityOverviewPage() {
       supabase.from("incidents").select("id", { count: "exact", head: true })
         .eq("status", "open"),
       supabase.from("residents").select("id", { count: "exact", head: true }),
-    ]).then(([v, g, i, r]) => {
+      supabase.from("gate_events")
+        .select("event_at, gates:gate_id(direction)")
+        .gte("event_at", yesterday.toISOString())
+        .eq("action", "auto_open")
+        .limit(500),
+    ]).then(([v, g, i, r, events]) => {
       setCounts({
         visitorsToday: v.count ?? 0,
         gateEvents24h: g.count ?? 0,
         incidentsOpen: i.count ?? 0,
         residents: r.count ?? 0,
       });
+
+      const buckets: Record<number, { entry: number; exit: number }> = {};
+      for (let h = 0; h < 24; h++) buckets[h] = { entry: 0, exit: 0 };
+      type RawEvent = { event_at: string; gates: { direction: string } | null };
+      const raw = (events.data as unknown as RawEvent[]) ?? [];
+      for (const ev of raw) {
+        const h = new Date(ev.event_at).getHours();
+        if (!buckets[h]) buckets[h] = { entry: 0, exit: 0 };
+        if (ev.gates?.direction === "exit") buckets[h].exit++;
+        else buckets[h].entry++;
+      }
+      setChart(Object.entries(buckets).map(([h, b]) => ({
+        hour: `${h.padStart(2, "0")}`,
+        entry: b.entry,
+        exit: b.exit,
+      })));
+
       setLoading(false);
     });
   }, []);
@@ -80,6 +109,21 @@ export default function SecurityOverviewPage() {
           <KPICard icon={DoorOpen} label="ประตู (24 ชม.)" value={loading ? "…" : String(counts.gateEvents24h)} />
           <KPICard icon={AlertTriangle} label="เหตุการณ์เปิดอยู่" value={loading ? "…" : String(counts.incidentsOpen)} highlight={counts.incidentsOpen > 0} />
           <KPICard icon={UserPlus} label="ลูกบ้านในระบบ" value={loading ? "…" : String(counts.residents)} />
+        </div>
+
+        <div>
+          <SectionHeader title="ปริมาณรถผ่านประตู (24 ชม.)" subtitle="เฉพาะ event ที่เปิดประตูอัตโนมัติ" />
+          <GlassCard className="p-3">
+            {loading ? (
+              <div className="h-56 animate-pulse" />
+            ) : chart.every(c => c.entry === 0 && c.exit === 0) ? (
+              <div className="h-56 flex items-center justify-center text-xs text-aviva-secondary text-center px-4">
+                ยังไม่มีข้อมูลใน 24 ชม. ลองยิง mock event ที่ /security/mock-alpr
+              </div>
+            ) : (
+              <GateTrafficChart data={chart} />
+            )}
+          </GlassCard>
         </div>
 
         <div>
