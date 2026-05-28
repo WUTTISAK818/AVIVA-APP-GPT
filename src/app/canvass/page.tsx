@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Network, Users, MapPin, Vote, ChevronRight, ChevronLeft, Plus, X,
-  Crown, UserPlus, AlertTriangle, Building2, BarChart3, ChevronDown,
+  Crown, UserPlus, AlertTriangle, Building2, BarChart3, ChevronDown, MessageCircle,
 } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
@@ -13,6 +13,7 @@ import ProgressBar from "@/components/ProgressBar";
 import Toast, { type ToastType } from "@/components/Toast";
 import IdCardCapture, { type ExtractedIdFields } from "@/components/IdCardCapture";
 import PresenceCapture, { type PresenceProof } from "@/components/PresenceCapture";
+import LineVerifyModal from "@/components/LineVerifyModal";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import {
@@ -208,6 +209,7 @@ function OverviewTab(props: {
 
   const [showAddMember, setShowAddMember] = useState(false);
   const [showAddResident, setShowAddResident] = useState(false);
+  const [verifyResident, setVerifyResident] = useState<CanvassResident | null>(null);
 
   if (loading) {
     return (
@@ -271,6 +273,12 @@ function OverviewTab(props: {
                     )}
                   </div>
                 </div>
+                {r.phone && !r.phone_verified && (
+                  <button onClick={() => setVerifyResident(r)}
+                    className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-green-500/10 text-green-400 border border-green-500/25 text-xs font-medium">
+                    <MessageCircle size={13} /> ยืนยันเบอร์ผ่าน LINE
+                  </button>
+                )}
               </GlassCard>
             ))}
           </div>
@@ -283,6 +291,15 @@ function OverviewTab(props: {
             onClose={() => setShowAddResident(false)}
             onSaved={async () => { setShowAddResident(false); await onChanged(); showToast("บันทึกชาวบ้านสำเร็จ"); }}
             showToast={showToast}
+          />
+        )}
+        {verifyResident && (
+          <LineVerifyModal
+            residentId={verifyResident.id}
+            residentName={verifyResident.full_name}
+            phone={verifyResident.phone ?? ""}
+            onClose={() => setVerifyResident(null)}
+            onVerified={async () => { setVerifyResident(null); await onChanged(); showToast("ยืนยันเบอร์ผ่าน LINE สำเร็จ"); }}
           />
         )}
       </>
