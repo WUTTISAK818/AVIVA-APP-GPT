@@ -2992,7 +2992,15 @@ function DocumentsContent() {
                         <p className="text-[10px] text-aviva-secondary/70 mt-0.5 line-clamp-2">{doc.description}</p>
                       )}
                     </div>
-                    <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      {doc.file_url && (
+                        doc.file_url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+                          ? <a href={doc.file_url} target="_blank" rel="noreferrer">
+                              <img src={doc.file_url} alt="ไฟล์แนบ" className="w-12 h-12 rounded-lg object-cover border border-aviva-gold/20" />
+                            </a>
+                          : <a href={doc.file_url} target="_blank" rel="noreferrer"
+                              className="text-[10px] text-aviva-gold underline">ดูไฟล์</a>
+                      )}
                       <Icon size={14} className={sConf.color} />
                       <span className={clsx("text-[10px] font-medium", sConf.color)}>{sConf.label}</span>
                     </div>
