@@ -374,14 +374,14 @@ export default function CRMPage() {
   const openCall = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
     setCrmLogLead(lead);
-    setCrmLogForm({ channel: "Phone", callStatus: "", note: "" });
+    setCrmLogForm({ channel: "Phone", callStatus: "", note: "", photo: null, photoPreview: "" });
   };
 
   const openChat = (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
     const channel = ["TikTok", "Instagram"].includes(lead.source) ? lead.source : "LINE";
     setCrmLogLead(lead);
-    setCrmLogForm({ channel, callStatus: "", note: "" });
+    setCrmLogForm({ channel, callStatus: "", note: "", photo: null, photoPreview: "" });
   };
 
   const saveCrmLog = async () => {
