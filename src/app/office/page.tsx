@@ -1228,7 +1228,6 @@ const emptyEmployeeForm = {
 };
 
 function HRContent() {
-  const [hrView, setHrView] = useState<"employees" | "payroll">("employees");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -1236,6 +1235,7 @@ function HRContent() {
   const [saving, setSaving] = useState(false);
   const [filterDept, setFilterDept] = useState("ทั้งหมด");
   const [kpiModalHR, setKpiModalHR] = useState<"employees" | "probation" | "salary" | null>(null);
+  const [hrTab, setHrTab] = useState<"บุคคล" | "เงินเดือน">("บุคคล");
 
   const fetchEmployees = () => {
     supabase.from("employees").select("*")
@@ -1279,32 +1279,23 @@ function HRContent() {
     fetchEmployees();
   };
 
-  if (hrView === "payroll") return (
-    <div>
-      <div className="sticky top-[105px] z-30 bg-aviva-bg/95 px-4 py-2 flex items-center gap-2 border-b border-aviva-gold/10">
-        <button onClick={() => setHrView("employees")}
-          className="text-xs text-aviva-gold flex items-center gap-1 bg-aviva-gold/10 px-3 py-1.5 rounded-xl border border-aviva-gold/30">
-          ← กลับ ฝ่ายบุคคล
-        </button>
-        <span className="text-sm font-semibold text-aviva-text">เงินเดือนพนักงาน</span>
-      </div>
-      <PayrollContent />
-    </div>
-  );
-
   return (
-    <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
-      {/* Sub-tab: employees / payroll */}
-      <div className="flex gap-2">
-        <button onClick={() => setHrView("employees")}
-          className={clsx("flex-1 py-2 rounded-xl text-xs font-semibold border transition-all",
-            hrView === "employees" ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
-          )}>ข้อมูลพนักงาน</button>
-        <button onClick={() => setHrView("payroll")}
-          className="flex-1 py-2 rounded-xl text-xs font-semibold border transition-all bg-aviva-card text-aviva-secondary border-aviva-gold/10">
-          เงินเดือน / สลิป
-        </button>
+    <>
+      <div className="px-4 pt-4 pb-0 max-w-lg mx-auto">
+        <div className="flex gap-2">
+          {(["บุคคล", "เงินเดือน"] as const).map(t => (
+            <button key={t} onClick={() => setHrTab(t)}
+              className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
+                hrTab === t ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+              )}>{t}</button>
+          ))}
+        </div>
       </div>
+
+      {hrTab === "เงินเดือน" && <PayrollContent />}
+
+      {hrTab === "บุคคล" && (
+      <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       {/* Summary */}
       <div className="grid grid-cols-3 gap-2">
         <button onClick={() => setKpiModalHR("employees")} className="active:scale-[0.96] transition-transform w-full text-left">
@@ -1442,6 +1433,8 @@ function HRContent() {
           }
         </div>
       </div>
+      </div>
+      )}
 
       {/* Add Employee Modal */}
       {showModal && (
@@ -1582,7 +1575,7 @@ function HRContent() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -1693,7 +1686,18 @@ function AfterSalesContent() {
   };
 
   const handleUpdateStatus = async (id: string, newStatus: Claim["status"]) => {
+    const claim = claims.find(c => c.id === id);
     await supabase.from("warranty_claims").update({ status: newStatus }).eq("id", id);
+    const statusTh: Record<string, string> = { pending: "รอดำเนินการ", in_progress: "กำลังดำเนินการ", resolved: "แก้ไขแล้ว" };
+    if (claim) {
+      await createNotification({
+        type: newStatus === "resolved" ? "success" : "info",
+        title: `${statusTh[newStatus] ?? newStatus} — แจ้งซ่อม`,
+        message: `${claim.issue_type}: ${claim.description ?? ""} — ${claim.customer_name}`,
+        from_dept: "ฝ่ายหลังการขาย",
+        to_dept: "ฝ่ายหลังการขาย",
+      });
+    }
     setSelectedClaim(null);
     fetchClaims();
   };
@@ -1948,6 +1952,22 @@ interface ApprovalLog {
 
 type ApprovalsFilterTab = "pending" | "approved" | "rejected";
 
+const APPR_DEPT: Record<string, string> = {
+  Material_Purchase: "ฝ่ายก่อสร้าง",
+  Finance_Approval: "ฝ่ายการเงิน",
+  Installment_Review: "ฝ่ายก่อสร้าง",
+  Leave_Request: "ฝ่ายบุคคล",
+  Document_Approval: "ฝ่ายออฟฟิศ",
+};
+
+const APPR_LABEL: Record<string, string> = {
+  Material_Purchase: "ขออนุมัติจัดซื้อวัสดุ",
+  Finance_Approval: "ขออนุมัติรายจ่าย",
+  Installment_Review: "ตรวจสอบงวดงาน",
+  Leave_Request: "ขออนุมัติการลา",
+  Document_Approval: "ขออนุมัติเอกสาร",
+};
+
 function fmtAmt(n: number) {
   if (n >= 1_000_000) return `฿${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `฿${(n / 1_000).toFixed(0)}K`;
@@ -1982,23 +2002,45 @@ function ApprovalsContent() {
 
   const handleApprove = async (id: string) => {
     setSaving(true);
+    const log = logs.find(l => l.approval_id === id);
     await supabase.from("approval_logs").update({
       action_taken: "Approved",
       action_timestamp: new Date().toISOString(),
       approver_email: user?.email,
     }).eq("approval_id", id);
+    if (log) {
+      const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
+      await createNotification({
+        type: "success",
+        title: `อนุมัติแล้ว — ${log.source_doc_index}`,
+        message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type}${log.amount ? ` ฿${Number(log.amount).toLocaleString()}` : ""} ได้รับการอนุมัติแล้ว`,
+        from_dept: dept,
+        to_dept: dept,
+      });
+    }
     setSaving(false);
     fetchLogs();
   };
 
   const handleReject = async (id: string) => {
     setSaving(true);
+    const log = logs.find(l => l.approval_id === id);
     await supabase.from("approval_logs").update({
       action_taken: "Rejected",
       action_timestamp: new Date().toISOString(),
       approver_email: user?.email,
       rejection_comment: rejectComment,
     }).eq("approval_id", id);
+    if (log) {
+      const dept = APPR_DEPT[log.workflow_type] ?? "ระบบ";
+      await createNotification({
+        type: "info",
+        title: `ปฏิเสธ — ${log.source_doc_index}`,
+        message: `${APPR_LABEL[log.workflow_type] ?? log.workflow_type} ถูกปฏิเสธ${rejectComment ? `: ${rejectComment}` : ""}`,
+        from_dept: dept,
+        to_dept: dept,
+      });
+    }
     setSaving(false);
     setRejectingId(null);
     setRejectComment("");
@@ -2163,7 +2205,7 @@ function MaterialsContent() {
     let parsedItems = [];
     try { parsedItems = JSON.parse(poForm.items); } catch { parsedItems = [{ name: poForm.items, qty: 1, unit: "ชิ้น", unit_price: 0 }]; }
     const total = parsedItems.reduce((s: number, i: { qty: number; unit_price: number }) => s + (i.qty * i.unit_price), 0);
-    await supabase.from("purchase_orders").insert({
+    const { data: poData } = await supabase.from("purchase_orders").insert({
       project_id: PROJECT_ID,
       supplier_name: poForm.supplier_name,
       items: parsedItems,
@@ -2171,6 +2213,22 @@ function MaterialsContent() {
       status: "draft",
       requested_by: user?.full_name ?? user?.email ?? "Unknown",
       notes: poForm.notes,
+    }).select().single();
+    if (poData) {
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Material_Purchase",
+        source_doc_index: `PO — ${poForm.supplier_name}`,
+        source_record_id: poData.id,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        amount: total,
+      });
+    }
+    await createNotification({
+      type: "approval",
+      title: "ใบสั่งซื้อ (PO) ใหม่",
+      message: `${poForm.supplier_name} — ฿${total.toLocaleString("th-TH")} — โดย ${user?.full_name ?? "Unknown"}`,
+      from_dept: "ฝ่ายก่อสร้าง",
     });
     setSaving(false);
     setShowPOModal(false);
@@ -2179,7 +2237,16 @@ function MaterialsContent() {
   };
 
   const handlePOApprove = async (id: string) => {
+    const po = pos.find(p => p.id === id);
     await supabase.from("purchase_orders").update({ status: "approved", approved_by: user?.full_name, approved_at: new Date().toISOString() }).eq("id", id);
+    if (po) {
+      await createNotification({
+        type: "success",
+        title: "อนุมัติ PO แล้ว",
+        message: `${po.supplier_name} — ฿${(po.total_amount ?? 0).toLocaleString("th-TH")} ได้รับการอนุมัติโดย ${user?.full_name ?? "Admin"}`,
+        from_dept: "ฝ่ายก่อสร้าง",
+      });
+    }
     fetchData();
   };
 
@@ -2367,6 +2434,60 @@ function PayrollContent() {
 
   const totalNetPayroll = employees.reduce((sum, emp) => sum + (calcPayroll(emp).net ?? 0), 0);
 
+  const printPayslip = (pr: PayrollEmployee) => {
+    const special = parseFloat(specialIncomes[pr.id] ?? "0") || 0;
+    const monthDisplay = new Date(month + "-01").toLocaleDateString("th-TH", { month: "long", year: "numeric" });
+    const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
+      <title>สลิปเงินเดือน — ${pr.full_name}</title>
+      <style>
+        body{font-family:'Sarabun',sans-serif;margin:0;padding:40px;color:#222;font-size:14px;max-width:600px;margin:0 auto}
+        .header{text-align:center;margin-bottom:20px;border-bottom:2px solid #D4AF37;padding-bottom:16px}
+        .logo{font-size:24px;font-weight:bold;letter-spacing:4px;color:#1E4A35}
+        .sub{font-size:13px;color:#666;margin-top:4px}
+        table{width:100%;border-collapse:collapse;margin-bottom:16px}
+        td{padding:8px 0;border-bottom:1px solid #eee;font-size:13px}
+        td:last-child{text-align:right;font-weight:600}
+        .section-title{background:#f9f7f0;font-weight:bold;color:#1E4A35;padding:8px 12px;margin:-1px -0px;font-size:12px;text-transform:uppercase;letter-spacing:1px}
+        .total-row td{border-top:2px solid #D4AF37;border-bottom:none;color:#D4AF37;font-size:16px;font-weight:bold;padding-top:12px}
+        .deduct{color:#e53e3e}
+        .footer{text-align:center;margin-top:24px;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:12px}
+        .sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px}
+        .sign-box{text-align:center;border-top:1px solid #ccc;padding-top:8px;font-size:12px;color:#666}
+        @media print{body{padding:10px}}
+      </style></head><body>
+      <div class="header">
+        <div class="logo">AVIVA ONE</div>
+        <div class="sub">สลิปเงินเดือนประจำเดือน ${monthDisplay}</div>
+      </div>
+      <table>
+        <tr><td>ชื่อ-นามสกุล</td><td>${pr.full_name}</td></tr>
+        <tr><td>ตำแหน่ง</td><td>${pr.position ?? "-"}</td></tr>
+        <tr><td>แผนก</td><td>${pr.department ?? "-"}</td></tr>
+        <tr><td>สถานะ</td><td>Active</td></tr>
+      </table>
+      <p class="section-title">รายรับ</p>
+      <table>
+        <tr><td>เงินเดือนพื้นฐาน</td><td>฿${pr.base_salary.toLocaleString("th-TH")}</td></tr>
+        ${(pr.commission_amount ?? 0) > 0 ? `<tr><td>ค่าคอมมิชชั่น</td><td style="color:#22543d">+฿${(pr.commission_amount ?? 0).toLocaleString("th-TH")}</td></tr>` : ""}
+        ${special > 0 ? `<tr><td>รายได้พิเศษ</td><td style="color:#22543d">+฿${special.toLocaleString("th-TH")}</td></tr>` : ""}
+        <tr><td>รายรับรวม</td><td>฿${(pr.base_salary + (pr.commission_amount ?? 0) + special).toLocaleString("th-TH")}</td></tr>
+      </table>
+      <p class="section-title">รายหัก</p>
+      <table>
+        <tr><td class="deduct">ประกันสังคม (5%, สูงสุด ฿750)</td><td class="deduct">-฿${(pr.sso ?? 0).toLocaleString("th-TH")}</td></tr>
+        <tr class="total-row"><td>เงินได้สุทธิ</td><td>฿${(pr.net ?? 0).toLocaleString("th-TH")}</td></tr>
+      </table>
+      <div class="sign">
+        <div class="sign-box">ลงชื่อผู้รับเงิน<br><br>(_________________________)<br>${pr.full_name}</div>
+        <div class="sign-box">ลงชื่อผู้อนุมัติ<br><br>(_________________________)<br>ผู้บริหาร</div>
+      </div>
+      <div class="footer">เอกสารนี้ออกโดยระบบ AVIVA ONE · ${new Date().toLocaleDateString("th-TH")}</div>
+      <script>window.onload=function(){window.print();}</script>
+      </body></html>`;
+    const w = window.open("", "_blank", "width=700,height=600");
+    if (w) { w.document.write(html); w.document.close(); }
+  };
+
   return (
     <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
       <div className="flex items-center gap-3">
@@ -2424,114 +2545,66 @@ function PayrollContent() {
       </div>
 
       {/* Payslip Modal */}
-      {payslipEmp && (() => {
-        const special = parseFloat(specialIncomes[payslipEmp.id] ?? "0") || 0;
-        const gross = payslipEmp.base_salary + (payslipEmp.commission_amount ?? 0) + special;
-        const tax = gross > 26000 ? Math.round((gross - 26000) * 0.05) : 0;
-        return (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm print:bg-transparent print:items-start print:inset-auto print:static">
-          <div id="payslip-print" className="w-full max-w-lg bg-white rounded-t-3xl p-6 pb-10 space-y-0 print-area print:rounded-none print:shadow-none print:p-8">
-            <style>{`@media print { #payslip-print { font-family: 'Sarabun', sans-serif !important; } .no-print { display: none !important; } }`}</style>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4 no-print">
-              <h2 className="text-base font-bold text-gray-800">สลิปเงินเดือน</h2>
+      {payslipEmp && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 print-area">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">สลิปเงินเดือน</h2>
               <div className="flex items-center gap-2">
-                <button onClick={() => window.print()} className="text-xs text-aviva-gold border border-aviva-gold/30 px-3 py-1.5 rounded-lg flex items-center gap-1 bg-aviva-gold/5">
-                  <Printer size={11} /> พิมพ์
+                <button onClick={() => printPayslip(payslipEmp)} className="text-xs text-aviva-gold border border-aviva-gold/30 px-2 py-1 rounded-lg flex items-center gap-1">
+                  <Printer size={11} /> พิมพ์สลิป
                 </button>
-                <button onClick={() => setPayslipEmp(null)}><X size={18} className="text-gray-500" /></button>
+                <button onClick={() => setPayslipEmp(null)}><X size={18} className="text-aviva-secondary" /></button>
               </div>
             </div>
-            {/* Company Header */}
-            <div className="text-center border-b-2 border-gray-800 pb-3 mb-4">
-              <p className="text-lg font-bold tracking-[0.2em] text-gray-900">AVIVA ONE</p>
-              <p className="text-xs text-gray-500">โครงการ AVIVA ONE · ระบบบริหารจัดการ</p>
-              <p className="text-sm font-semibold text-gray-700 mt-1">ใบรับรองเงินเดือน (Pay Slip)</p>
-              <p className="text-xs text-gray-500">ประจำเดือน {new Date(month + "-01").toLocaleDateString("th-TH", { month: "long", year: "numeric" })}</p>
+            <div className="text-center border-b border-aviva-gold/20 pb-3">
+              <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA ONE</p>
+              <p className="text-xs text-aviva-secondary mt-0.5">สลิปเงินเดือนประจำเดือน {month}</p>
             </div>
-            {/* Employee Info */}
-            <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
-              <div className="bg-gray-50 px-4 py-2">
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">ข้อมูลพนักงาน</p>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-aviva-secondary">ชื่อ-สกุล</span>
+                <span className="text-aviva-text font-medium">{payslipEmp.full_name}</span>
               </div>
-              <div className="px-4 py-3 grid grid-cols-2 gap-y-2 text-sm">
-                {[
-                  ["ชื่อ-สกุล", payslipEmp.full_name],
-                  ["ตำแหน่ง", payslipEmp.position],
-                  ["แผนก", payslipEmp.department],
-                  ["รหัสพนักงาน", payslipEmp.id.slice(0, 8).toUpperCase()],
-                ].map(([k, v]) => (
-                  <div key={k}>
-                    <p className="text-[10px] text-gray-400">{k}</p>
-                    <p className="text-gray-800 font-medium">{v}</p>
-                  </div>
-                ))}
+              <div className="flex justify-between">
+                <span className="text-aviva-secondary">ตำแหน่ง</span>
+                <span className="text-aviva-text">{payslipEmp.position}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-aviva-secondary">แผนก</span>
+                <span className="text-aviva-text">{payslipEmp.department}</span>
               </div>
             </div>
-            {/* Income / Deductions */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-green-50 px-3 py-1.5">
-                  <p className="text-[10px] font-bold text-green-700 uppercase">รายได้</p>
+            <div className="border-t border-aviva-gold/10 pt-3 space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-aviva-secondary">เงินเดือนพื้นฐาน</span>
+                <span className="text-aviva-text">฿{payslipEmp.base_salary.toLocaleString("th-TH")}</span>
+              </div>
+              {(payslipEmp.commission_amount ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary">ค่าคอมมิชชั่น</span>
+                  <span className="text-green-400">+฿{(payslipEmp.commission_amount ?? 0).toLocaleString("th-TH")}</span>
                 </div>
-                <div className="px-3 py-2 space-y-1.5 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">เงินเดือนพื้นฐาน</span>
-                    <span className="text-gray-800 font-medium">฿{payslipEmp.base_salary.toLocaleString("th-TH")}</span>
-                  </div>
-                  {(payslipEmp.commission_amount ?? 0) > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">ค่าคอมมิชชั่น</span>
-                      <span className="text-green-600 font-medium">+฿{(payslipEmp.commission_amount ?? 0).toLocaleString("th-TH")}</span>
-                    </div>
-                  )}
-                  {special > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">รายได้พิเศษ</span>
-                      <span className="text-green-600 font-medium">+฿{special.toLocaleString("th-TH")}</span>
-                    </div>
-                  )}
-                  <div className="border-t border-gray-100 pt-1 flex justify-between font-semibold">
-                    <span className="text-gray-600">รวมรายได้</span>
-                    <span className="text-green-700">฿{gross.toLocaleString("th-TH")}</span>
-                  </div>
+              )}
+              {(specialIncomes[payslipEmp.id] && parseFloat(specialIncomes[payslipEmp.id]) > 0) && (
+                <div className="flex justify-between">
+                  <span className="text-aviva-secondary">รายได้พิเศษ</span>
+                  <span className="text-green-400">+฿{parseFloat(specialIncomes[payslipEmp.id]).toLocaleString("th-TH")}</span>
                 </div>
+              )}
+              <div className="flex justify-between text-red-400">
+                <span>หัก: ประกันสังคม (5%, สูงสุด ฿750)</span>
+                <span>-฿{(payslipEmp.sso ?? 0).toLocaleString("th-TH")}</span>
               </div>
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-red-50 px-3 py-1.5">
-                  <p className="text-[10px] font-bold text-red-700 uppercase">รายการหัก</p>
-                </div>
-                <div className="px-3 py-2 space-y-1.5 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">ประกันสังคม (5%)</span>
-                    <span className="text-red-600">-฿{(payslipEmp.sso ?? 0).toLocaleString("th-TH")}</span>
-                  </div>
-                  {tax > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">ภาษีหัก ณ ที่จ่าย</span>
-                      <span className="text-red-600">-฿{tax.toLocaleString("th-TH")}</span>
-                    </div>
-                  )}
-                  <div className="border-t border-gray-100 pt-1 flex justify-between font-semibold">
-                    <span className="text-gray-600">รวมหัก</span>
-                    <span className="text-red-700">฿{((payslipEmp.sso ?? 0) + tax).toLocaleString("th-TH")}</span>
-                  </div>
-                </div>
+              <div className="flex justify-between font-bold text-aviva-gold border-t border-aviva-gold/20 pt-2 mt-1">
+                <span>เงินได้สุทธิ</span>
+                <span>฿{(payslipEmp.net ?? 0).toLocaleString("th-TH")}</span>
               </div>
             </div>
-            {/* Net Pay */}
-            <div className="bg-gray-800 text-white rounded-xl px-5 py-3 flex justify-between items-center mb-4">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-gray-300">เงินได้สุทธิ (NET PAY)</p>
-                <p className="text-[10px] text-gray-400">{new Date(month + "-01").toLocaleDateString("th-TH", { month: "long", year: "numeric" })}</p>
-              </div>
-              <p className="text-2xl font-bold text-yellow-300">฿{(payslipEmp.net ?? 0).toLocaleString("th-TH")}</p>
-            </div>
-            <p className="text-[9px] text-gray-400 text-center">เอกสารนี้ออกโดยระบบ AVIVA ONE เมื่อ {new Date().toLocaleDateString("th-TH")} · สงวนลิขสิทธิ์</p>
+            <p className="text-[10px] text-aviva-secondary/40 text-center">เอกสารนี้ออกโดยระบบ AVIVA ONE · {new Date().toLocaleDateString("th-TH")}</p>
           </div>
         </div>
-        );
-      })()}
+      )}
     </div>
   );
 }
@@ -2723,6 +2796,7 @@ interface OfficeDocument {
   uploaded_by: string;
   approved_by: string | null;
   created_at: string;
+  description?: string | null;
 }
 
 type DocFilterCat = "all" | "Contract" | "Loan" | "Permit" | "Utility";
@@ -2749,30 +2823,13 @@ const docCategoryTh: Record<string, string> = {
   Other:    "อื่นๆ",
 };
 
-const DOC_INDEX = [
-  { code: "CON-001", name: "สัญญาจะซื้อจะขาย", category: "Contract", dept: "ฝ่ายขาย", desc: "สัญญาระหว่างผู้จะขายและผู้จะซื้อที่ดินพร้อมสิ่งปลูกสร้าง ก่อนโอนกรรมสิทธิ์จริง" },
-  { code: "CON-002", name: "สัญญาว่าจ้างก่อสร้าง", category: "Contract", dept: "ฝ่ายก่อสร้าง", desc: "สัญญาจ้างผู้รับเหมาก่อสร้าง ระบุขอบเขตงาน ราคา และเงื่อนไขการจ่ายงวดงาน" },
-  { code: "CON-003", name: "สัญญาโอนกรรมสิทธิ์", category: "Contract", dept: "ฝ่ายขาย", desc: "เอกสารโอนกรรมสิทธิ์ที่ดินและสิ่งปลูกสร้างที่กรมที่ดิน" },
-  { code: "LN-001",  name: "คำขอสินเชื่อธนาคาร",  category: "Loan",     dept: "ฝ่ายขาย", desc: "แบบฟอร์มขอสินเชื่อที่อยู่อาศัยจากธนาคาร ใช้ประกอบการยื่นกู้ของลูกค้า" },
-  { code: "LN-002",  name: "หนังสือรับรองราคาประเมิน", category: "Loan", dept: "ฝ่ายขาย", desc: "เอกสารรับรองมูลค่าทรัพย์สินจากผู้ประเมิน เพื่อประกอบการยื่นกู้" },
-  { code: "PER-001", name: "ใบอนุญาตก่อสร้าง (อ.1)", category: "Permit", dept: "ฝ่ายก่อสร้าง", desc: "ใบอนุญาตก่อสร้างอาคารที่ออกโดย อบต./เทศบาล ก่อนเริ่มก่อสร้าง" },
-  { code: "PER-002", name: "ใบรับรองการก่อสร้าง (อ.6)", category: "Permit", dept: "ฝ่ายก่อสร้าง", desc: "ใบรับรองอาคารหลังก่อสร้างเสร็จ ออกโดยหน่วยงานท้องถิ่น" },
-  { code: "UTL-001", name: "คำขอมิเตอร์ไฟฟ้า",   category: "Utility", dept: "ฝ่ายก่อสร้าง", desc: "แบบฟอร์มขอติดตั้งมิเตอร์ไฟฟ้าชั่วคราว/ถาวร กับการไฟฟ้าส่วนภูมิภาค" },
-  { code: "UTL-002", name: "คำขอประปา",           category: "Utility", dept: "ฝ่ายก่อสร้าง", desc: "แบบฟอร์มขอติดตั้งมิเตอร์น้ำประปากับการประปาส่วนภูมิภาค" },
-  { code: "HR-001",  name: "สัญญาจ้างงาน",        category: "Contract", dept: "ฝ่ายบุคคล", desc: "สัญญาจ้างพนักงานประจำ/พนักงานทดลองงาน ระบุเงินเดือน สวัสดิการ และเงื่อนไข" },
-  { code: "HR-002",  name: "ใบลาหยุด/ลากิจ",     category: "Other",    dept: "ฝ่ายบุคคล", desc: "แบบฟอร์มขอลาหยุด ลากิจ ลาป่วย ลาพักร้อน ใช้ยื่นต่อหัวหน้างาน" },
-  { code: "FIN-001", name: "ใบเสนอราคา (Quotation)", category: "Contract", dept: "ฝ่ายขาย", desc: "ใบเสนอราคาบ้านและที่ดินสำหรับลูกค้า ก่อนทำสัญญาจะซื้อจะขาย" },
-  { code: "FIN-002", name: "ใบสั่งซื้อวัสดุ (PO)", category: "Other",   dept: "ฝ่ายก่อสร้าง", desc: "เอกสารสั่งซื้อวัสดุก่อสร้างจากผู้จำหน่าย พร้อมรายการสินค้าและราคา" },
-];
-
 function DocumentsContent() {
   const [docs, setDocs] = useState<OfficeDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<DocFilterCat>("all");
   const [search, setSearch] = useState("");
-  const [showIndex, setShowIndex] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "" });
+  const [form, setForm] = useState({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "" });
   const [saving, setSaving] = useState(false);
 
   const fetchDocs = () => {
@@ -2796,25 +2853,51 @@ function DocumentsContent() {
   const handleSave = async () => {
     if (!form.name) return;
     setSaving(true);
-    await supabase.from("documents").insert({
+    const { data: docData } = await supabase.from("documents").insert({
       project_id: PROJECT_ID,
       name: form.name,
       category: form.category,
       uploaded_by: form.uploaded_by,
       file_url: form.file_url || null,
+      description: form.description || null,
       status: "pending",
+    }).select().single();
+    if (docData) {
+      await supabase.from("approval_logs").insert({
+        workflow_type: "Document_Approval",
+        source_doc_index: form.name,
+        source_record_id: docData.id,
+        current_approver_role: "manager",
+        action_taken: "Pending",
+        amount: null,
+      });
+    }
+    await createNotification({
+      type: "document",
+      title: "เอกสารใหม่รอการอนุมัติ",
+      message: `[${docCategoryTh[form.category] ?? form.category}] ${form.name}${form.description ? ` — ${form.description}` : ""}`,
+      from_dept: "ฝ่ายออฟฟิศ",
     });
     setSaving(false);
     setShowModal(false);
-    setForm({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "" });
+    setForm({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "" });
     fetchDocs();
   };
 
   const handleApprove = async (id: string, approve: boolean) => {
+    const doc = docs.find(d => d.id === id);
     await supabase.from("documents").update({
       status: approve ? "approved" : "rejected",
       approved_by: "Admin",
     }).eq("id", id);
+    if (doc) {
+      await createNotification({
+        type: approve ? "success" : "info",
+        title: approve ? "อนุมัติเอกสารแล้ว" : "ปฏิเสธเอกสาร",
+        message: `${doc.name}${doc.description ? ` — ${doc.description}` : ""}`,
+        from_dept: "ฝ่ายออฟฟิศ",
+      });
+    }
     fetchDocs();
   };
 
@@ -2825,43 +2908,11 @@ function DocumentsContent() {
         <p className="text-xs text-aviva-secondary">
           {loading ? "กำลังโหลด..." : `${docs.length} ไฟล์`}
         </p>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowIndex(v => !v)}
-            className="flex items-center gap-1.5 bg-aviva-card text-aviva-secondary text-xs font-medium px-3 py-2 rounded-xl border border-aviva-gold/20">
-            <FolderOpen size={12} /> คำอธิบายเอกสาร
-          </button>
-          <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
-            <Upload size={13} /> เพิ่มเอกสาร
-          </button>
-        </div>
+        <button onClick={() => setShowModal(true)}
+          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+          <Upload size={13} /> เพิ่มเอกสาร
+        </button>
       </div>
-
-      {/* Document Index Panel */}
-      {showIndex && (
-        <GlassCard className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-aviva-text">ดัชนีเอกสาร (Document Index)</p>
-            <button onClick={() => setShowIndex(false)}><X size={14} className="text-aviva-secondary" /></button>
-          </div>
-          <p className="text-[11px] text-aviva-secondary">รหัสเอกสาร ชื่อเต็ม และคำอธิบายของเอกสารทุกประเภทในระบบ</p>
-          <div className="space-y-2 max-h-72 overflow-y-auto">
-            {DOC_INDEX.map(doc => (
-              <div key={doc.code} className="bg-aviva-bg/60 rounded-xl px-3 py-2.5 space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-md border border-aviva-gold/20 flex-shrink-0">{doc.code}</span>
-                  <span className="text-xs font-semibold text-aviva-text">{doc.name}</span>
-                </div>
-                <div className="flex items-center gap-2 text-[10px] text-aviva-secondary">
-                  <span className={clsx("px-1.5 py-0.5 rounded-full", docCategoryStyle[doc.category] ?? "bg-gray-500/20 text-gray-400")}>{docCategoryTh[doc.category] ?? doc.category}</span>
-                  <span>·</span><span>{doc.dept}</span>
-                </div>
-                <p className="text-[10px] text-aviva-secondary/70 leading-relaxed">{doc.desc}</p>
-              </div>
-            ))}
-          </div>
-        </GlassCard>
-      )}
 
       <div className="grid grid-cols-3 gap-3">
         <GlassCard className="p-3 text-center">
@@ -2931,12 +2982,15 @@ function DocumentsContent() {
                         )}
                         <p className="text-sm text-aviva-text font-medium truncate">{doc.name}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded-full", docCategoryStyle[doc.category])}>
                           {docCategoryTh[doc.category] ?? doc.category}
                         </span>
                         <span className="text-[10px] text-aviva-secondary">{doc.uploaded_by}</span>
                       </div>
+                      {doc.description && (
+                        <p className="text-[10px] text-aviva-secondary/70 mt-0.5 line-clamp-2">{doc.description}</p>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
                       <Icon size={14} className={sConf.color} />
@@ -2994,6 +3048,13 @@ function DocumentsContent() {
               </div>
             </div>
             <div>
+              <label className="text-xs text-aviva-secondary mb-1 block">คำอธิบายเอกสาร</label>
+              <textarea value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="อธิบายวัตถุประสงค์และเนื้อหาของเอกสาร..." rows={2}
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+            </div>
+            <div>
               <label className="text-xs text-aviva-secondary mb-1 block">ลิงค์ไฟล์ (Google Drive / URL)</label>
               <input type="url" value={form.file_url}
                 onChange={(e) => setForm({ ...form, file_url: e.target.value })}
@@ -3023,7 +3084,7 @@ const TABS: { key: OfficeTab; label: string; managerOnly?: boolean; construction
   { key: "approvals",   label: "อนุมัติ",    managerOnly: true },
   { key: "materials",   label: "คลังวัสดุ",  constructionOnly: true },
   { key: "documents",   label: "เอกสาร" },
-  { key: "community",   label: "ส่วนกลาง",   adminOnly: true },
+  { key: "community",   label: "ค่าส่วนกลาง", adminOnly: true },
 ];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -3054,13 +3115,13 @@ export default function OfficePage() {
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-3">
         <div className="max-w-lg mx-auto">
           <h1 className="text-lg font-bold text-aviva-text mb-3">ออฟฟิศ</h1>
-          <div className="grid grid-cols-5 gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {visibleTabs.map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
                 className={clsx(
-                  "py-2 px-1 rounded-xl text-[10px] font-semibold border transition-all text-center leading-tight",
+                  "py-1.5 px-3 rounded-xl text-[11px] font-semibold border transition-all whitespace-nowrap",
                   activeTab === key
                     ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
                     : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"

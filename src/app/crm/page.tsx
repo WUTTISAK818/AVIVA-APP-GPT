@@ -52,6 +52,14 @@ interface HouseSlot {
 
 interface AiMsg { role: "user" | "assistant"; text: string; }
 
+interface CrmLog {
+  id: string;
+  contact_channel: string;
+  call_status: string;
+  call_note: string | null;
+  created_at: string;
+}
+
 const sourceColor: Record<string, string> = {
   Facebook: "bg-blue-500/20 text-blue-400",
   TikTok: "bg-pink-500/20 text-pink-400",
@@ -124,6 +132,8 @@ export default function CRMPage() {
   const [showActModal, setShowActModal] = useState(false);
   const [actForm, setActForm] = useState({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0] });
   const [savingAct, setSavingAct] = useState(false);
+  const [leadLogs, setLeadLogs] = useState<CrmLog[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   useEffect(() => {
     supabase.from("houses").select("plot_number,status,house_model")
@@ -131,6 +141,17 @@ export default function CRMPage() {
       .then(({ data }) => setHouses((data ?? []) as HouseSlot[]));
     fetchSalesActs();
   }, []);
+
+  useEffect(() => {
+    if (!selectedLead) { setLeadLogs([]); return; }
+    setLoadingLogs(true);
+    supabase.from("crm_logs")
+      .select("id,contact_channel,call_status,call_note,created_at")
+      .eq("lead_id", selectedLead.id)
+      .order("created_at", { ascending: false })
+      .limit(10)
+      .then(({ data }) => { setLeadLogs((data ?? []) as CrmLog[]); setLoadingLogs(false); });
+  }, [selectedLead]);
 
   const fetchSalesActs = () => {
     supabase.from("sales_activities").select("id,activity_type,note,activity_date")
@@ -988,6 +1009,28 @@ export default function CRMPage() {
 
             {selectedLead.notes && (
               <p className="text-xs text-aviva-secondary bg-aviva-bg rounded-xl px-3 py-2 leading-relaxed">{selectedLead.notes}</p>
+            )}
+
+            {/* ประวัติการติดต่อ */}
+            {loadingLogs ? (
+              <div className="h-10 rounded-xl bg-aviva-bg/50 animate-pulse" />
+            ) : leadLogs.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold text-aviva-secondary mb-1.5">ประวัติการติดต่อ ({leadLogs.length})</p>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {leadLogs.map(log => (
+                    <div key={log.id} className="bg-aviva-bg rounded-xl px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-aviva-gold font-medium">{log.contact_channel} · {log.call_status}</span>
+                        <span className="text-aviva-secondary/60">{new Date(log.created_at).toLocaleDateString("th-TH")}</span>
+                      </div>
+                      {log.call_note && <p className="text-aviva-secondary leading-relaxed">{log.call_note}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-aviva-secondary/50 text-center py-1">ยังไม่มีประวัติการติดต่อ</p>
             )}
 
             <div className="grid grid-cols-2 gap-2">
