@@ -99,7 +99,8 @@ export default function DashboardPage() {
     setAiMsgs(p => [...p, { role: "user", text: msg }]);
     setAiLoading(true);
     try {
-      const res = await fetch("/api/ai-chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: msg }) });
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/ai-chat", { method: "POST", headers: { "Content-Type": "application/json", ...(session?.access_token ? { "Authorization": `Bearer ${session.access_token}` } : {}) }, body: JSON.stringify({ message: msg }) });
       const data = await res.json();
       setAiMsgs(p => [...p, { role: "assistant", text: data.response ?? "ขออภัย ไม่สามารถตอบได้ค่ะ" }]);
     } catch {
@@ -197,7 +198,6 @@ export default function DashboardPage() {
   const totalUnits = project?.total_units ?? 0;
   const soldUnits = project?.sold_units ?? 0;
   const available = project?.available_units ?? 0;
-  const revenue = project?.revenue_actual ?? 0;
   const constructionProgress = project?.construction_progress ?? 0;
   const selloutForecast = project?.sellout_forecast ?? "-";
   const selloutPct = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
@@ -205,13 +205,12 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">
-      {/* Header */}
       <div className="sticky top-0 z-40 bg-aviva-bg/95 backdrop-blur-sm border-b border-aviva-gold/10 px-4 pt-12 pb-4">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v2.9.4</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v2.9.5</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}
@@ -232,7 +231,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-6">
-        {/* AI Executive Panel */}
         <div className="bg-aviva-card rounded-2xl border border-aviva-gold/20 overflow-hidden">
           <button onClick={() => setShowAI(a => !a)}
             className="w-full flex items-center gap-3 p-3 hover:bg-aviva-gold/5 transition-all active:scale-[0.99]">
@@ -276,7 +274,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Approval Inbox */}
         {ctxUser?.isManager && (
           <GlassCard className="p-4 border border-aviva-gold/15">
             <div className="flex items-center justify-between mb-3">
@@ -306,7 +303,7 @@ export default function DashboardPage() {
                     Material_Purchase:  { label: "ขออนุมัติจัดซื้อ", Icon: Package, color: "text-blue-400", bg: "bg-blue-500/10" },
                     Document_Approval:  { label: "ขออนุมัติเอกสาร", Icon: FileText, color: "text-purple-400", bg: "bg-purple-500/10" },
                     Finance_Approval:   { label: "ขออนุมัติรายจ่าย", Icon: Receipt, color: "text-yellow-400", bg: "bg-yellow-500/10" },
-                    Leave_Request:      { label: "ขออนุมัติการลา", Icon: Briefcase, color: "text-teal-400", bg: "bg-teal-500/10" },
+                    Leave_Request:      { label: "ขออนุมัตดการลา", Icon: Briefcase, color: "text-teal-400", bg: "bg-teal-500/10" },
                   };
                   const c = cfg[workflow_type] ?? { label: workflow_type, Icon: ShieldAlert, color: "text-aviva-secondary", bg: "bg-aviva-bg/50" };
                   return (
@@ -327,7 +324,6 @@ export default function DashboardPage() {
           </GlassCard>
         )}
 
-        {/* AI Insights */}
         <div>
           <SectionHeader title="AI Executive Insights" subtitle="วิเคราะห์โดย AVIVA AI" />
           <div className="space-y-3">
@@ -369,7 +365,6 @@ export default function DashboardPage() {
           </GlassCard>
         ) : (
           <>
-            {/* ภาพรวมโครงการ — 3-col KPI */}
             <div>
               <SectionHeader title="ภาพรวมโครงการ"
                 subtitle={loading ? "กำลังโหลด..." : "กดการ์ดเพื่อดูรายละเอียด"} />
@@ -395,9 +390,26 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Financial Overview with chart */}
             <GlassCard className="p-4">
               <SectionHeader title="ภาพรวมการเงิน" subtitle="รายรับ-รายจ่าย ปีปัจจุบัน" />
+              {project && project.revenue_target > 0 && (
+                <div className="mb-4 bg-aviva-bg/50 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] text-aviva-secondary">รายรับจริง vs เป้าหมาย</span>
+                    <span className="text-[10px] font-bold text-aviva-gold">
+                      {Math.min(100, Math.round((stats.totalReceipts / project.revenue_target) * 100))}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-aviva-bg rounded-full overflow-hidden">
+                    <div className="h-full bg-aviva-gold rounded-full transition-all"
+                      style={{ width: `${Math.min(100, Math.round((stats.totalReceipts / project.revenue_target) * 100))}%` }} />
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-[10px] text-aviva-secondary">฿{formatMillions(stats.totalReceipts)}</span>
+                    <span className="text-[10px] text-aviva-secondary">เป้า ฿{formatMillions(project.revenue_target)}</span>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <button onClick={() => openKpi("revenue")}
                   className="bg-aviva-bg/50 rounded-xl p-3 text-center active:scale-95 transition-all">
@@ -437,7 +449,6 @@ export default function DashboardPage() {
               </div>
             </GlassCard>
 
-            {/* Construction Info Box */}
             <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <SectionHeader title="ก่อสร้าง" subtitle="สถานะงวดงาน" />
@@ -464,7 +475,6 @@ export default function DashboardPage() {
               <ProgressBar label={`ความคืบหน้าก่อสร้าง ${constructionProgress}%`} value={constructionProgress} />
             </GlassCard>
 
-            {/* CRM */}
             <GlassCard className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <SectionHeader title="CRM — ฝ่ายขาย" subtitle={`คาดว่าจะขายหมด: ${selloutForecast}`} />
@@ -489,14 +499,12 @@ export default function DashboardPage() {
           </>
         )}
 
-        {/* Calendar */}
         <div>
           <SectionHeader title="ปฏิทินกิจกรรม" subtitle="กดวันเพื่อดู/เพิ่มกิจกรรม" />
           <CalendarWidget />
         </div>
       </div>
 
-      {/* KPI Detail Modal */}
       {kpiModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 max-h-[80vh] flex flex-col mb-14">
