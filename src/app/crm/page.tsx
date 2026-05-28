@@ -58,6 +58,7 @@ interface CrmLog {
   call_status: string;
   call_note: string | null;
   created_at: string;
+  photo_url: string | null;
 }
 
 const sourceColor: Record<string, string> = {
@@ -128,7 +129,7 @@ export default function CRMPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const aiEndRef = useRef<HTMLDivElement>(null);
   const [houses, setHouses] = useState<HouseSlot[]>([]);
-  const [salesActs, setSalesActs] = useState<{ id: string; activity_type: string; note: string | null; activity_date: string }[]>([]);
+  const [salesActs, setSalesActs] = useState<{ id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null }[]>([]);
   const [showActModal, setShowActModal] = useState(false);
   const [actForm, setActForm] = useState({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null as File | null, photoPreview: "" });
   const [savingAct, setSavingAct] = useState(false);
@@ -148,7 +149,7 @@ export default function CRMPage() {
     if (!selectedLead) { setLeadLogs([]); return; }
     setLoadingLogs(true);
     supabase.from("crm_logs")
-      .select("id,contact_channel,call_status,call_note,created_at")
+      .select("id,contact_channel,call_status,call_note,created_at,photo_url")
       .eq("lead_id", selectedLead.id)
       .order("created_at", { ascending: false })
       .limit(10)
@@ -156,9 +157,9 @@ export default function CRMPage() {
   }, [selectedLead]);
 
   const fetchSalesActs = () => {
-    supabase.from("sales_activities").select("id,activity_type,note,activity_date")
+    supabase.from("sales_activities").select("id,activity_type,note,activity_date,photo_url")
       .order("activity_date", { ascending: false }).limit(30)
-      .then(({ data }) => setSalesActs((data ?? []) as { id: string; activity_type: string; note: string | null; activity_date: string }[]));
+      .then(({ data }) => setSalesActs((data ?? []) as { id: string; activity_type: string; note: string | null; activity_date: string; photo_url: string | null }[]));
   };
 
   const handleAddActivity = async () => {
@@ -745,13 +746,22 @@ export default function CRMPage() {
                 <p className="text-xs font-semibold text-aviva-gold mb-2">กิจกรรมล่าสุด</p>
                 <div className="space-y-1.5">
                   {salesActs.slice(0, 10).map((a) => (
-                    <div key={a.id} className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0" />
-                      <span className="text-xs text-aviva-text">{a.activity_type}</span>
-                      {a.note && <span className="text-[10px] text-aviva-secondary truncate">— {a.note}</span>}
-                      <span className="text-[10px] text-aviva-secondary/50 ml-auto flex-shrink-0">
-                        {new Date(a.activity_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
-                      </span>
+                    <div key={a.id} className="flex items-start gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0 mt-1.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-aviva-text">{a.activity_type}</span>
+                          {a.note && <span className="text-[10px] text-aviva-secondary truncate">— {a.note}</span>}
+                          <span className="text-[10px] text-aviva-secondary/50 ml-auto flex-shrink-0">
+                            {new Date(a.activity_date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                          </span>
+                        </div>
+                        {a.photo_url && (
+                          <a href={a.photo_url} target="_blank" rel="noreferrer">
+                            <img src={a.photo_url} alt="รูปกิจกรรม" className="w-16 h-16 rounded-lg object-cover mt-1 border border-aviva-gold/20" />
+                          </a>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1077,6 +1087,11 @@ export default function CRMPage() {
                         <span className="text-aviva-secondary/60">{new Date(log.created_at).toLocaleDateString("th-TH")}</span>
                       </div>
                       {log.call_note && <p className="text-aviva-secondary leading-relaxed">{log.call_note}</p>}
+                      {log.photo_url && (
+                        <a href={log.photo_url} target="_blank" rel="noreferrer">
+                          <img src={log.photo_url} alt="รูปประกอบ" className="w-16 h-16 rounded-lg object-cover mt-1.5 border border-aviva-gold/20" />
+                        </a>
+                      )}
                     </div>
                   ))}
                 </div>
