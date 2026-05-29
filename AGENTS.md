@@ -4,10 +4,66 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+<!-- BEGIN:preflight-rule -->
+# Pre-flight Check (MANDATORY — ทำก่อนเริ่มงานทุกครั้ง)
+
+**ก่อนแก้ไขโค้ดใดๆ** ต้องทำตามขั้นตอนนี้ก่อนเสมอ:
+
+## Step 1 — อ่านเวอร์ชันปัจจุบันจาก GitHub main โดยตรง
+```
+mcp__github__get_file_contents → owner: wuttisak818, repo: aviva-app-gpt, path: src/app/dashboard/page.tsx, ref: refs/heads/main
+```
+ค้นหา `v2.9.x` badge ในไฟล์ — นั่นคือ **CURRENT_VERSION**
+
+## Step 2 — ใช้ CURRENT_VERSION เป็นฐาน
+Version bump ทุกครั้งต้อง increment จาก CURRENT_VERSION ที่อ่านได้จริง ห้ามใช้เวอร์ชันจากความจำหรือบทสนทนาก่อนหน้า
+
+## Step 3 — แจ้งผู้ใช้ก่อนเริ่มงาน
+บอกผู้ใช้ว่า: "GitHub main ปัจจุบันคือ vX.X.X — จะ bump เป็น vX.X.Y"
+
+**เหตุผล:** session ถูก compact ทำให้ข้อมูลเวอร์ชันจากหน่วยความจำเก่าหรือไม่ตรง การอ่านจาก GitHub โดยตรงทุกครั้งรับประกันความถูกต้อง 100%
+<!-- END:preflight-rule -->
+
+<!-- BEGIN:pre-push-build-rule -->
+# Pre-Push Build Check (MANDATORY — ทำก่อน push ทุกครั้ง)
+
+**ห้าม push โค้ดก่อนผ่าน build** — รัน `npm run build` และต้องได้ผลลัพธ์ที่ไม่มี TypeScript error ก่อนเสมอ
+
+```bash
+npm run build
+# ต้องเห็น: ✓ Compiled successfully
+# ต้องไม่มี: Type error / Failed to type check
+```
+
+## ข้อผิดพลาดที่เคยเกิดแล้ว — ห้ามเกิดซ้ำ
+
+### ❌ ข้อผิดพลาดที่ 1 — เพิ่ม field ใน interface แล้วลืม reset
+**เกิดขึ้น:** v2.9.8 — เพิ่ม `reported_by` ใน form state แต่ลืมใส่ใน `setForm({...})` ที่ reset form
+**กฎ:** เมื่อเพิ่ม field ใด ๆ ใน form state ต้องค้นหาทุก `setForm({` ใน file นั้นและเพิ่ม field ให้ครบทุกจุด
+```bash
+# ตรวจสอบก่อน push เสมอ:
+grep -n "setForm({" src/app/FILENAME.tsx
+```
+
+### ❌ ข้อผิดพลาดที่ 2 — เพิ่ม field ใน emptyForm แต่ลืม openEdit / detail panel
+**เกิดขึ้น:** v2.9.8 — เพิ่ม `email`, `financing_type`, `urgency`, `next_follow_up_date` ใน CRM form แต่ `setForm` ที่เรียกจาก detail panel ลืมใส่ fields ใหม่
+**กฎ:** เมื่อเพิ่ม field ใน `emptyForm` ต้องอัปเดต **ทุกจุดที่** `setForm` ถูกเรียกพร้อม object literal (ไม่ใช่ spread)
+
+### ❌ ข้อผิดพลาดที่ 3 — ใช้ field ใน JSX แต่ไม่ได้ประกาศใน interface
+**เกิดขึ้น:** v2.9.8 — ใช้ `doc.file_url` ใน `office/page.tsx` แต่ `OfficeDocument` interface ไม่มี field นั้น
+**กฎ:** เมื่อ access property ใด ๆ จาก object ที่มี type กำกับ ต้องตรวจว่า interface มี field นั้นอยู่แล้ว ถ้าไม่มีให้เพิ่มก่อนใช้
+
+## Checklist ก่อน push ทุกครั้ง
+- [ ] `npm run build` ผ่าน ไม่มี TypeScript error
+- [ ] ทุก `setForm({...})` ที่เป็น object literal (ไม่ใช่ spread) มีครบทุก field
+- [ ] ทุก interface มี field ที่ถูกใช้ใน JSX
+- [ ] Version bump ครบทั้ง dashboard + settings
+<!-- END:pre-push-build-rule -->
+
 <!-- BEGIN:deploy-report-rule -->
 # Deploy Rule (MANDATORY — ทุกครั้งที่ git push)
 
-After EVERY `git push`, you MUST do ALL of the following steps in order:
+After EVERY push to GitHub, you MUST do ALL of the following steps in order:
 
 ## Step 1 — อัปเดตเวอร์ชันในโค้ด (ก่อน commit สุดท้าย)
 Bump the version number in BOTH files:
@@ -16,28 +72,41 @@ Bump the version number in BOTH files:
 
 Version format: `v{MAJOR}.{MINOR}.{PATCH}` — increment PATCH for fixes, MINOR for new features.
 
-## Step 2 — บันทึก Deploy Report ลง Google Drive
+## Step 2 — Push ไปทั้งสอง branch
+Push ไฟล์ที่แก้ไขไปยัง **ทั้งสอง branch** เพื่อให้ Vercel deploy ได้แน่นอน:
+- `main` — production branch
+- `claude/move-work-location-2CfBA` — Vercel watched branch
+
+ใช้ `mcp__github__push_files` สองครั้ง (branch ละครั้ง)
+
+## Step 3 — บันทึก Deploy Report ลง Google Drive
 Create a report in Thai using `mcp__8faf3051-cdce-4013-97eb-37b094e28b96__create_file`:
 - Filename: `AVIVA-ONE-deploy-report-v{VERSION}-{DATE}.txt`
 - Content must include ALL of:
   - version number
-  - date/time (วันที่ + เวลา, โซน Asia/Bangkok)
+  - **date AND time (HH:MM น. เวลาไทย UTC+7)** — ดึงจาก commit timestamp ของ GitHub แล้วแปลงเป็น UTC+7
   - **web app link (URL ของเว็บแอปที่ deploy)** — see WEB APP URL below
   - list of changes
   - files changed
   - commit hashes
 
-## Step 3 — แจ้งผู้ใช้
+**⚠️ บังคับ:** ต้องบันทึกเวลาจริง (HH:MM น.) ทุกครั้ง ไม่ใช่แค่วันที่
+ดึงเวลาจาก commit timestamp ของ GitHub แล้วแปลงเป็น UTC+7 ก่อนบันทึก
+ตัวอย่าง: `วันที่: 29 พฤษภาคม 2569 เวลา 12:00 น. (UTC+7)`
+
+## Step 4 — แจ้งผู้ใช้
 Report to the user:
 - Version deployed (e.g., v2.9.2)
 - Date/time
 - **Web app link (URL)**
 - Google Drive file link/ID
+- Confirm pushed to both `main` and `claude/move-work-location-2CfBA`
 
 ## WEB APP URL (canonical — ใช้ในทุกรายงาน)
-- Production URL: `https://winvote.netlify.app` (ยืนยันโดยผู้ใช้ 2026-05-29)
-- Platform: Netlify (ดู `netlify.toml`)
-- หมายเหตุ: environment นี้บล็อก outbound (curl คืน 403 เสมอ) — ตรวจ URL เองไม่ได้ ให้ยึดค่านี้ที่ผู้ใช้ยืนยัน และอย่าเดาเติม subdomain ใหม่เอง
+- Netlify URL (ผู้ใช้ยืนยัน 2026-05-29): `https://winvote.netlify.app`
+- CI/Deploy ของ PR ทำงานบน **Vercel** (project: `aviva-private`) — production branch = `main`, watched branch = `claude/move-work-location-2CfBA`
+- ⚠️ ยังต้องยืนยันว่า production จริงที่ผู้ใช้เปิดใช้คือ Netlify หรือ Vercel (มีร่องรอยทั้งสอง) — ใส่ URL ที่ผู้ใช้ยืนยันในรายงาน
+- หมายเหตุ: environment นี้บล็อก outbound (curl คืน 403 เสมอ) — ตรวจ URL เองไม่ได้ อย่าเดาเติม subdomain ใหม่เอง
 
 This rule is PERMANENT and applies to every deploy session without exception.
 หมายเหตุ: ข้อมูลที่ต้องมีในรายงานทุกครั้ง = เวอร์ชัน + วันที่/เวลา + ลิงก์เว็บแอป (+ รายการแก้ไข/ไฟล์/commit)
