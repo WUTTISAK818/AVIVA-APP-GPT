@@ -35,9 +35,9 @@ Report to the user:
 - Google Drive file link/ID
 
 ## WEB APP URL (canonical — ใช้ในทุกรายงาน)
-- Production URL: `<<UNVERIFIED — "win-vote.netlify.app" คืน 404 (Site not found) เมื่อ 2026-05-29 ขอผู้ใช้ยืนยัน URL จริง/ชื่อ site ที่ถูกต้อง>>`
+- Production URL: `https://winvote.netlify.app` (ยืนยันโดยผู้ใช้ 2026-05-29)
 - Platform: Netlify (ดู `netlify.toml`)
-- หมายเหตุ: ตรวจสอบ URL จริงก่อนบันทึกลงรายงานเสมอ — ห้ามเดาเติม subdomain เอง
+- หมายเหตุ: environment นี้บล็อก outbound (curl คืน 403 เสมอ) — ตรวจ URL เองไม่ได้ ให้ยึดค่านี้ที่ผู้ใช้ยืนยัน และอย่าเดาเติม subdomain ใหม่เอง
 
 This rule is PERMANENT and applies to every deploy session without exception.
 หมายเหตุ: ข้อมูลที่ต้องมีในรายงานทุกครั้ง = เวอร์ชัน + วันที่/เวลา + ลิงก์เว็บแอป (+ รายการแก้ไข/ไฟล์/commit)
