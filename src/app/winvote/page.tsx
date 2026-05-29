@@ -112,7 +112,7 @@ export default function WinVotePage() {
         <div className="max-w-lg mx-auto px-4 pt-12 pb-3">
           <div className="flex items-center gap-2 mb-3">
             <Network size={22} className="text-aviva-gold" />
-            <h1 className="text-xl font-bold text-aviva-text">WinVote <span className="text-sm font-normal text-aviva-muted">เครือข่ายฐานเสียง</span></h1>
+            <h1 className="text-xl font-bold text-aviva-text">WinVote <span className="text-sm font-normal text-aviva-secondary">เครือข่ายฐานเสียง</span></h1>
           </div>
           <div className="flex gap-1 bg-aviva-card rounded-2xl p-1">
             {([
