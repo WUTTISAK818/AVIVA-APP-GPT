@@ -19,12 +19,25 @@ Version format: `v{MAJOR}.{MINOR}.{PATCH}` — increment PATCH for fixes, MINOR 
 ## Step 2 — บันทึก Deploy Report ลง Google Drive
 Create a report in Thai using `mcp__8faf3051-cdce-4013-97eb-37b094e28b96__create_file`:
 - Filename: `AVIVA-ONE-deploy-report-v{VERSION}-{DATE}.txt`
-- Content must include: version number, date/time, list of changes, files changed, commit hashes
+- Content must include ALL of:
+  - version number
+  - date/time (วันที่ + เวลา, โซน Asia/Bangkok)
+  - **web app link (URL ของเว็บแอปที่ deploy)** — see WEB APP URL below
+  - list of changes
+  - files changed
+  - commit hashes
 
 ## Step 3 — แจ้งผู้ใช้
 Report to the user:
 - Version deployed (e.g., v2.9.2)
+- Date/time
+- **Web app link (URL)**
 - Google Drive file link/ID
 
+## WEB APP URL (canonical — ใช้ในทุกรายงาน)
+- Production URL: `https://win-vote.netlify.app`
+- Platform: Netlify (ดู `netlify.toml`) — site name: `win-vote`
+
 This rule is PERMANENT and applies to every deploy session without exception.
+หมายเหตุ: ข้อมูลที่ต้องมีในรายงานทุกครั้ง = เวอร์ชัน + วันที่/เวลา + ลิงก์เว็บแอป (+ รายการแก้ไข/ไฟล์/commit)
 <!-- END:deploy-report-rule -->
