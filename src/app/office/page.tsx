@@ -2797,6 +2797,7 @@ interface OfficeDocument {
   approved_by: string | null;
   created_at: string;
   description?: string | null;
+  file_url?: string | null;
 }
 
 type DocFilterCat = "all" | "Contract" | "Loan" | "Permit" | "Utility";
@@ -2829,9 +2830,8 @@ function DocumentsContent() {
   const [filter, setFilter] = useState<DocFilterCat>("all");
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "", photo: null as File | null, photoPreview: "" });
+  const [form, setForm] = useState({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "" });
   const [saving, setSaving] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const fetchDocs = () => {
     supabase.from("documents").select("*").eq("project_id", PROJECT_ID)
@@ -2854,23 +2854,12 @@ function DocumentsContent() {
   const handleSave = async () => {
     if (!form.name) return;
     setSaving(true);
-    let attachmentUrl: string | null = form.file_url || null;
-    if (form.photo) {
-      setUploadingPhoto(true);
-      const ext = form.photo.name.split(".").pop() ?? "jpg";
-      const path = `docs/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("document-attachments").upload(path, form.photo, { upsert: true });
-      if (!error) {
-        attachmentUrl = supabase.storage.from("document-attachments").getPublicUrl(path).data.publicUrl;
-      }
-      setUploadingPhoto(false);
-    }
     const { data: docData } = await supabase.from("documents").insert({
       project_id: PROJECT_ID,
       name: form.name,
       category: form.category,
       uploaded_by: form.uploaded_by,
-      file_url: attachmentUrl,
+      file_url: form.file_url || null,
       description: form.description || null,
       status: "pending",
     }).select().single();
@@ -2892,7 +2881,7 @@ function DocumentsContent() {
     });
     setSaving(false);
     setShowModal(false);
-    setForm({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "", photo: null, photoPreview: "" });
+    setForm({ name: "", category: "Contract", uploaded_by: "Admin", file_url: "", description: "" });
     fetchDocs();
   };
 
@@ -3004,7 +2993,15 @@ function DocumentsContent() {
                         <p className="text-[10px] text-aviva-secondary/70 mt-0.5 line-clamp-2">{doc.description}</p>
                       )}
                     </div>
-                    <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      {doc.file_url && (
+                        doc.file_url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+                          ? <a href={doc.file_url} target="_blank" rel="noreferrer">
+                              <img src={doc.file_url} alt="ไฟล์แนบ" className="w-12 h-12 rounded-lg object-cover border border-aviva-gold/20" />
+                            </a>
+                          : <a href={doc.file_url} target="_blank" rel="noreferrer"
+                              className="text-[10px] text-aviva-gold underline">ดูไฟล์</a>
+                      )}
                       <Icon size={14} className={sConf.color} />
                       <span className={clsx("text-[10px] font-medium", sConf.color)}>{sConf.label}</span>
                     </div>
@@ -3067,32 +3064,14 @@ function DocumentsContent() {
                 className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
             </div>
             <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">ถ่ายรูปเอกสาร / แนบรูปภาพ</label>
-              <label className="cursor-pointer flex items-center gap-3 w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3">
-                <input type="file" accept="image/*" capture="environment" className="hidden"
-                  onChange={e => {
-                    const f = e.target.files?.[0];
-                    if (f) setForm(prev => ({ ...prev, photo: f, photoPreview: URL.createObjectURL(f), file_url: "" }));
-                  }} />
-                {uploadingPhoto
-                  ? <span className="text-xs text-aviva-gold animate-pulse">กำลังอัปโหลด...</span>
-                  : <><Upload size={14} className="text-aviva-secondary/60 flex-shrink-0" />
-                    <span className="text-sm text-aviva-secondary/60">{form.photo ? form.photo.name : "ถ่ายรูปหรือเลือกรูป..."}</span>
-                    {form.photoPreview && <img src={form.photoPreview} alt="preview" className="w-12 h-12 rounded-lg object-cover ml-auto border border-aviva-gold/20" />}
-                  </>
-                }
-              </label>
-            </div>
-            <div>
-              <label className="text-xs text-aviva-secondary mb-1 block">หรือ ลิงค์ไฟล์ (Google Drive / URL)</label>
+              <label className="text-xs text-aviva-secondary mb-1 block">ลิงค์ไฟล์ (Google Drive / URL)</label>
               <input type="url" value={form.file_url}
-                onChange={(e) => setForm({ ...form, file_url: e.target.value, photo: null, photoPreview: "" })}
+                onChange={(e) => setForm({ ...form, file_url: e.target.value })}
                 placeholder="https://drive.google.com/..."
-                disabled={!!form.photo}
-                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 disabled:opacity-40" />
+                className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
             </div>
           </div>
-          <button onClick={handleSave} disabled={saving || !form.name || uploadingPhoto}
+          <button onClick={handleSave} disabled={saving || !form.name}
             className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
             {saving ? "กำลังบันทึก..." : "เพิ่มเอกสาร"}
           </button>
