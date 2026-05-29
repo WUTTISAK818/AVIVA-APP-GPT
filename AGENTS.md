@@ -82,7 +82,11 @@ Push ไฟล์ที่แก้ไขไปยัง **ทั้งสอง
 ## Step 3 — บันทึก Deploy Report ลง Google Drive
 Create a report in Thai using `mcp__8faf3051-cdce-4013-97eb-37b094e28b96__create_file`:
 - Filename: `AVIVA-ONE-deploy-report-v{VERSION}-{DATE}.txt`
-- Content must include: version number, date/time, list of changes, files changed, commit hashes
+- Content must include: version number, **date AND time (HH:MM น. เวลาไทย UTC+7)**, list of changes, files changed, commit hashes
+
+**⚠️ บังคับ:** ต้องบันทึกเวลาจริง (HH:MM น.) ทุกครั้ง ไม่ใช่แค่วันที่
+ดึงเวลาจาก commit timestamp ของ GitHub แล้วแปลงเป็น UTC+7 ก่อนบันทึก
+ตัวอย่าง: `วันที่: 29 พฤษภาคม 2569 เวลา 12:00 น. (UTC+7)`
 
 ## Step 4 — แจ้งผู้ใช้
 Report to the user:
