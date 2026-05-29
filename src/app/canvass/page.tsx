@@ -12,8 +12,10 @@ import GlassCard from "@/components/GlassCard";
 import ProgressBar from "@/components/ProgressBar";
 import Toast, { type ToastType } from "@/components/Toast";
 import IdCardCapture, { type ExtractedIdFields } from "@/components/IdCardCapture";
+import ChipCardReader from "@/components/ChipCardReader";
 import PresenceCapture, { type PresenceProof } from "@/components/PresenceCapture";
 import LineVerifyModal from "@/components/LineVerifyModal";
+import { type ChipIdFields } from "@/lib/thai-id-reader";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import {
@@ -522,9 +524,10 @@ function AddResidentModal(props: {
   const [form, setForm] = useState({ ...emptyResident });
   const [proof, setProof] = useState<PresenceProof | null>(null);
   const [dup, setDup] = useState<{ national_id: boolean; phone: boolean; full_name: boolean }>({ national_id: false, phone: false, full_name: false });
+  const [captureMethod, setCaptureMethod] = useState<"photo" | "chip">("photo");
   const [saving, setSaving] = useState(false);
 
-  const onExtracted = (f: ExtractedIdFields) => {
+  const fillFromCard = (f: { national_id: string | null; full_name: string | null; date_of_birth: string | null; gender: "male" | "female" | "other" | null; address: string | null }) => {
     setForm((prev) => ({
       ...prev,
       national_id: f.national_id ?? prev.national_id,
@@ -533,7 +536,16 @@ function AddResidentModal(props: {
       gender: f.gender ?? prev.gender,
       address: f.address ?? prev.address,
     }));
+  };
+  const onExtracted = (f: ExtractedIdFields) => {
+    fillFromCard(f);
+    setCaptureMethod("photo");
     showToast("อ่านข้อมูลจากบัตรแล้ว ตรวจสอบความถูกต้องก่อนบันทึก", "info");
+  };
+  const onChipExtracted = (f: ChipIdFields) => {
+    fillFromCard(f);
+    setCaptureMethod("chip");
+    showToast("อ่านข้อมูลจากชิปบัตรสำเร็จ", "success");
   };
 
   const runDupCheck = async () => {
@@ -564,7 +576,7 @@ function AddResidentModal(props: {
       capture_lat: proof?.capture_lat ?? null,
       capture_lng: proof?.capture_lng ?? null,
       captured_at: proof?.captured_at ?? null,
-      capture_method: "photo",
+      capture_method: captureMethod,
       created_by: createdBy,
     });
     setSaving(false);
@@ -578,7 +590,16 @@ function AddResidentModal(props: {
 
   return (
     <ModalShell title="เพิ่มชาวบ้าน" onClose={onClose}>
+      <ChipCardReader onExtracted={onChipExtracted} onError={(m) => showToast(m, "error")} />
+      <div className="flex items-center gap-3 my-1">
+        <div className="flex-1 h-px bg-aviva-gold/10" />
+        <span className="text-[11px] text-aviva-secondary/60">หรือ</span>
+        <div className="flex-1 h-px bg-aviva-gold/10" />
+      </div>
       <IdCardCapture onExtracted={onExtracted} onError={(m) => showToast(m, "error")} />
+      {captureMethod === "chip" && (
+        <p className="text-[11px] text-green-400">✓ ข้อมูลนี้อ่านจากชิปบัตร (capture_method=chip)</p>
+      )}
 
       <Field label="เลขประจำตัวประชาชน *">
         <input value={form.national_id} onChange={(e) => setForm({ ...form, national_id: e.target.value.replace(/\D/g, "").slice(0, 13) })}
