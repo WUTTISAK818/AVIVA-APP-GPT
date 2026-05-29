@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+// NOTE (C2): For production, replace ANON_KEY with SUPABASE_SERVICE_ROLE_KEY
+// to ensure server-side queries bypass RLS correctly.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -9,6 +11,7 @@ const supabase = createClient(
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
+// H3: Rate limiter with cleanup to prevent memory leak
 const rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT = 10;
 const RATE_WINDOW = 60_000;
@@ -18,6 +21,12 @@ function checkRateLimit(ip: string): boolean {
   const recent = (rateLimitMap.get(ip) ?? []).filter(t => now - t < RATE_WINDOW);
   if (recent.length >= RATE_LIMIT) return false;
   rateLimitMap.set(ip, [...recent, now]);
+  // Periodic cleanup: evict IPs with no recent activity
+  if (rateLimitMap.size > 5_000) {
+    for (const [key, ts] of rateLimitMap) {
+      if (ts.every(t => now - t >= RATE_WINDOW)) rateLimitMap.delete(key);
+    }
+  }
   return true;
 }
 
@@ -25,42 +34,64 @@ export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
   if (!checkRateLimit(ip)) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
+  // C1: Auth is mandatory — no token = 401
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (token) {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { message } = await req.json();
-  if (!message) return NextResponse.json({ error: "No message provided" }, { status: 400 });
+  // C3: Safe JSON parse with validation
+  let message: string;
+  let history: { role: string; content: string }[] = [];
+  try {
+    const body = await req.json();
+    message = body.message;
+    if (Array.isArray(body.history)) history = body.history.slice(-5);
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  if (!message || typeof message !== "string" || message.trim().length === 0 || message.length > 2000) {
+    return NextResponse.json({ error: "No message provided" }, { status: 400 });
+  }
 
   const now = new Date();
   const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-  const [project, leads, houses, receipts, campaigns, employees, pendingApprovals, pendingClaims, installments] =
-    await Promise.all([
-      supabase.from("projects").select("*").eq("id", PROJECT_ID).single().then(r => r.data),
-      supabase.from("leads").select("id,status,source,budget,assigned_to").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-      supabase.from("houses").select("id,house_number,status,progress,delayed_days,house_model").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-      supabase.from("receipts").select("amount,receipt_date,receipt_type").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-      supabase.from("campaigns").select("name,platform,status,leads_generated,budget,spent").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-      supabase.from("employees").select("id,department,status").eq("status", "active").then(r => r.data ?? []),
-      supabase.from("approval_logs").select("approval_id,workflow_type,amount,current_approver_role").eq("action_taken", "Pending").limit(20).then(r => r.data ?? []),
-      supabase.from("warranty_claims").select("id").eq("status", "pending").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
-      supabase.from("contractor_installments").select("id,status").eq("status", "in_review").then(r => r.data ?? []),
-    ]);
+  // H2: Catch entire Promise.all — if any query fails, return graceful error
+  const results = await Promise.all([
+    supabase.from("projects").select("*").eq("id", PROJECT_ID).single().then(r => r.data),
+    supabase.from("leads").select("id,status,source,budget,assigned_to").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabase.from("houses").select("id,house_number,status,progress,delayed_days,house_model").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    // M10: Use finance_transactions (same source as dashboard) instead of receipts
+    supabase.from("finance_transactions").select("amount,created_at,transaction_type").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabase.from("campaigns").select("name,platform,status,leads_generated,budget,spent").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabase.from("employees").select("id,department,status").eq("status", "active").then(r => r.data ?? []),
+    supabase.from("approval_logs").select("approval_id,workflow_type,amount,current_approver_role").eq("action_taken", "Pending").limit(20).then(r => r.data ?? []),
+    supabase.from("warranty_claims").select("id").eq("status", "pending").eq("project_id", PROJECT_ID).then(r => r.data ?? []),
+    supabase.from("contractor_installments").select("id,status").eq("status", "in_review").then(r => r.data ?? []),
+  ]).catch(() => null);
+
+  if (!results) {
+    return NextResponse.json({ response: "ไม่สามารถดึงข้อมูลโครงการได้ในขณะนี้ กรุณาลองใหม่ค่ะ" });
+  }
+
+  const [project, leads, houses, txns, campaigns, employees, pendingApprovals, pendingClaims, installments] = results;
+
+  if (!project) {
+    return NextResponse.json({ response: "ไม่พบข้อมูลโครงการ กรุณาตรวจสอบการตั้งค่าค่ะ" });
+  }
 
   const delayedHouses = (houses as {house_number:string;delayed_days:number;status:string}[]).filter(h => (h.delayed_days ?? 0) > 0);
   const bookingLeads = (leads as {status:string}[]).filter(l => ["Booking","Loan Process","Closed Deal"].includes(l.status));
   const closedLeads  = (leads as {status:string}[]).filter(l => l.status === "Closed Deal");
   const newLeads     = (leads as {status:string}[]).filter(l => l.status === "New Lead");
 
-  const allReceipts = receipts as {amount:number;receipt_date:string;receipt_type:string}[];
-  const thisMonthReceipts = allReceipts.filter(r => r.receipt_date?.startsWith(monthStr));
-  const monthIncome  = thisMonthReceipts.filter(r => r.receipt_type === "income").reduce((s,r) => s + Number(r.amount), 0);
-  const monthExpense = thisMonthReceipts.filter(r => r.receipt_type === "expense").reduce((s,r) => s + Math.abs(Number(r.amount)), 0);
-  const totalRevenue = allReceipts.filter(r => r.receipt_type === "income").reduce((s,r) => s + Number(r.amount), 0);
+  const allTxns = txns as {amount:number;created_at:string;transaction_type:string}[];
+  const thisMonthTxns = allTxns.filter(r => r.created_at?.startsWith(monthStr));
+  const monthIncome  = thisMonthTxns.filter(r => r.transaction_type === "income").reduce((s,r) => s + Number(r.amount), 0);
+  const monthExpense = thisMonthTxns.filter(r => r.transaction_type === "expense").reduce((s,r) => s + Math.abs(Number(r.amount)), 0);
+  const totalRevenue = allTxns.filter(r => r.transaction_type === "income").reduce((s,r) => s + Number(r.amount), 0);
 
   const activeCampaigns = (campaigns as {status:string}[]).filter(c => c.status === "active");
   const totalLeadsCampaign = (campaigns as {leads_generated:number}[]).reduce((s,c) => s + (c.leads_generated ?? 0), 0);
@@ -76,7 +107,7 @@ export async function POST(req: NextRequest) {
 - ความคืบหน้าก่อสร้าง: ${project?.construction_progress ?? 0}%
 - คาดขายหมด: ${project?.sellout_forecast ?? "ไม่ระบุ"}
 
-💰 การเงิน:
+💰 การเงิน (จาก finance_transactions):
 - รายรับสะสม: ฿${totalRevenue.toLocaleString()} / เป้า ฿${(project?.revenue_target ?? 0).toLocaleString()}
 - รายรับเดือนนี้: ฿${monthIncome.toLocaleString()} | รายจ่ายเดือนนี้: ฿${monthExpense.toLocaleString()}
 - กำไรสุทธิเดือนนี้: ฿${(monthIncome - monthExpense).toLocaleString()}
@@ -100,20 +131,39 @@ export async function POST(req: NextRequest) {
 
 ตอบเป็นภาษาไทย กระชับ มืออาชีพ ให้คำแนะนำเชิงกลยุทธ์ที่นำไปใช้ได้จริง`;
 
+  const fallbackData = { soldUnits: project?.sold_units ?? 0, totalUnits: project?.total_units ?? 0, delayedHouses, bookingLeads, monthIncome, monthExpense, pendingApprovals: pendingApprovals.length, employees: employees.length, empByDept, pendingClaims: pendingClaims.length, pendingInstallments: (installments as unknown[]).length };
+
   if (!OPENAI_API_KEY) {
-    return NextResponse.json({ response: generateFallback(message, { soldUnits: project?.sold_units ?? 0, totalUnits: project?.total_units ?? 0, delayedHouses, bookingLeads, monthIncome, monthExpense, pendingApprovals: pendingApprovals.length, employees: employees.length, empByDept, pendingClaims: pendingClaims.length, pendingInstallments: (installments as unknown[]).length }) });
+    return NextResponse.json({ response: generateFallback(message, fallbackData) });
   }
+
+  // M3: AbortController with 20s timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20_000);
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
+      signal: controller.signal,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "system", content: systemContext }, { role: "user", content: message }], temperature: 0.7, max_tokens: 500 }),
+      // L4: Include conversation history for context
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemContext },
+          ...history,
+          { role: "user", content: message },
+        ],
+        temperature: 0.7,
+        max_tokens: 500,
+      }),
     });
+    clearTimeout(timeoutId);
     const data = await res.json();
     return NextResponse.json({ response: data.choices?.[0]?.message?.content ?? "ไม่สามารถประมวลผลได้ กรุณาลองใหม่" });
   } catch {
-    return NextResponse.json({ response: generateFallback(message, { soldUnits: project?.sold_units ?? 0, totalUnits: project?.total_units ?? 0, delayedHouses, bookingLeads, monthIncome, monthExpense, pendingApprovals: pendingApprovals.length, employees: employees.length, empByDept, pendingClaims: pendingClaims.length, pendingInstallments: (installments as unknown[]).length }) });
+    clearTimeout(timeoutId);
+    return NextResponse.json({ response: generateFallback(message, fallbackData) });
   }
 }
 

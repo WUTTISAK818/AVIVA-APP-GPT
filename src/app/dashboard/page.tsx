@@ -100,7 +100,15 @@ export default function DashboardPage() {
     setAiLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch("/api/ai-chat", { method: "POST", headers: { "Content-Type": "application/json", ...(session?.access_token ? { "Authorization": `Bearer ${session.access_token}` } : {}) }, body: JSON.stringify({ message: msg }) });
+      const currentMsgs = aiMsgs;
+      const res = await fetch("/api/ai-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token ?? ""}` },
+        body: JSON.stringify({
+          message: msg,
+          history: currentMsgs.slice(-5).map(m => ({ role: m.role, content: m.text })),
+        }),
+      });
       const data = await res.json();
       setAiMsgs(p => [...p, { role: "assistant", text: data.response ?? "ขออภัย ไม่สามารถตอบได้ค่ะ" }]);
     } catch {
@@ -146,7 +154,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     supabase.from("projects").select("*").eq("id", PROJECT_ID).single()
-      .then(({ data }) => { setProject(data); setLoading(false); });
+      .then(({ data }) => { setProject(data); setLoading(false); }, () => setLoading(false));
 
     const year = new Date().getFullYear();
     Promise.all([
@@ -185,7 +193,7 @@ export default function DashboardPage() {
         map[m] = (map[m] ?? 0) + Number(r.amount) / 1_000_000;
       });
       setChartData(MONTHS.map((month, i) => ({ month, revenue: +((map[i] ?? 0).toFixed(1)) })));
-    });
+    }).catch(() => { /* M5: silently keep default zero stats on network error */ });
 
     fetchPendingBreakdown();
 
@@ -210,7 +218,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-aviva-gold tracking-wide">AVIVA ONE</h1>
-              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v2.9.10</span>
+              <span className="text-[10px] font-bold text-aviva-gold/70 bg-aviva-gold/10 px-2 py-0.5 rounded-full border border-aviva-gold/20">v2.9.12</span>
             </div>
             <p className="text-xs text-aviva-secondary mt-0.5">
               {ctxUser ? `${ctxUser.full_name} · ${ctxUser.department}` : formatDate()}

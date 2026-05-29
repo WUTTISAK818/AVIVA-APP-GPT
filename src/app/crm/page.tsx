@@ -7,9 +7,14 @@ import SectionHeader from "@/components/SectionHeader";
 import GlassCard from "@/components/GlassCard";
 import AIInsightPanel from "@/components/AIInsightPanel";
 import PeriodFilter, { type Period } from "@/components/PeriodFilter";
+import Toast, { type ToastType } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import { pipelineStages, type LeadStatus } from "@/lib/mock-data";
 import { createNotification } from "@/lib/notify";
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 const BOOKING_STATUSES: LeadStatus[] = ["Booking", "Loan Process", "Closed Deal"];
@@ -146,6 +151,7 @@ export default function CRMPage() {
   const [uploadingLogPhoto, setUploadingLogPhoto] = useState(false);
   const [leadLogs, setLeadLogs] = useState<CrmLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
 
   useEffect(() => {
     supabase.from("houses").select("plot_number,status,house_model")
@@ -191,6 +197,7 @@ export default function CRMPage() {
       activity_date: actForm.activity_date,
       photo_url: photoUrl,
     });
+    if (actForm.photoPreview) URL.revokeObjectURL(actForm.photoPreview);
     setSavingAct(false);
     setShowActModal(false);
     setActForm({ activity_type: "รับลูกค้า Walk-in", note: "", activity_date: new Date().toISOString().split("T")[0], photo: null, photoPreview: "" });
@@ -220,9 +227,9 @@ export default function CRMPage() {
     const dateStr = new Date().toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
     const plotStr = lead.plot_number ? `แปลงที่ ${lead.plot_number}` : "ยังไม่ระบุแปลง";
     const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
-      <title>ใบเสนอราคา — ${lead.customer_name}</title>
+      <title>ใบเสนอราคา — ${escapeHtml(lead.customer_name)}</title>
       <style>
-        body{font-family:'Sarabun',sans-serif;margin:0;padding:40px;color:#222;font-size:14px}
+        body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:40px;color:#222;font-size:14px}
         .header{text-align:center;margin-bottom:24px}
         .logo{font-size:28px;font-weight:bold;letter-spacing:4px;color:#1E4A35}
         .sub{font-size:12px;color:#666;margin-top:4px}
@@ -244,23 +251,23 @@ export default function CRMPage() {
       <div class="title">ใบเสนอราคา</div>
       <table>
         <tr><td>วันที่</td><td>${dateStr}</td></tr>
-        <tr><td>รหัสลูกค้า</td><td>${lead.lead_code ?? "-"}</td></tr>
-        <tr><td>ชื่อ-นามสกุล</td><td>${lead.customer_name}</td></tr>
-        <tr><td>เบอร์โทรศัพท์</td><td>${lead.phone}</td></tr>
-        <tr><td>แหล่งที่มา</td><td>${lead.source}</td></tr>
-        <tr><td>สถานะ</td><td><span class="badge">${lead.status}</span></td></tr>
+        <tr><td>รหัสลูกค้า</td><td>${escapeHtml(lead.lead_code ?? "-")}</td></tr>
+        <tr><td>ชื่อ-นามสกุล</td><td>${escapeHtml(lead.customer_name)}</td></tr>
+        <tr><td>เบอร์โทรศัพท์</td><td>${escapeHtml(lead.phone)}</td></tr>
+        <tr><td>แหล่งที่มา</td><td>${escapeHtml(lead.source)}</td></tr>
+        <tr><td>สถานะ</td><td><span class="badge">${escapeHtml(lead.status)}</span></td></tr>
       </table>
       <div class="title">รายละเอียดสินค้า</div>
       <table>
         <tr><td>โครงการ</td><td>AVIVA ONE</td></tr>
-        <tr><td>แปลงที่สนใจ</td><td>${plotStr}</td></tr>
+        <tr><td>แปลงที่สนใจ</td><td>${escapeHtml(plotStr)}</td></tr>
         <tr><td>งบประมาณลูกค้า</td><td>฿${Number(lead.budget).toLocaleString()}</td></tr>
         <tr class="total-row"><td>ราคาเสนอขาย</td><td>฿${Number(lead.budget).toLocaleString()}</td></tr>
       </table>
-      ${lead.notes ? `<div class="title">หมายเหตุ</div><p style="padding:8px 12px;background:#f9f7f0;border-radius:4px">${lead.notes}</p>` : ""}
+      ${lead.notes ? `<div class="title">หมายเหตุ</div><p style="padding:8px 12px;background:#f9f7f0;border-radius:4px">${escapeHtml(lead.notes)}</p>` : ""}
       <div class="footer">
         <div class="sign-block"><div class="sign-line">ลงชื่อ พนักงานขาย<br>(_________________________)</div></div>
-        <div class="sign-block"><div class="sign-line">ลงชื่อ ลูกค้า<br>(_________________________)<br>${lead.customer_name}</div></div>
+        <div class="sign-block"><div class="sign-line">ลงชื่อ ลูกค้า<br>(_________________________)<br>${escapeHtml(lead.customer_name)}</div></div>
       </div>
       <script>window.onload=function(){window.print();}</script>
       </body></html>`;
@@ -273,9 +280,9 @@ export default function CRMPage() {
     const plotStr = lead.plot_number ? `แปลงที่ ${lead.plot_number}` : "..........";
     const bookingDeposit = Math.round(Number(lead.budget) * 0.01);
     const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
-      <title>ใบจอง — ${lead.customer_name}</title>
+      <title>ใบจอง — ${escapeHtml(lead.customer_name)}</title>
       <style>
-        body{font-family:'Sarabun',sans-serif;margin:0;padding:40px;color:#222;font-size:14px;line-height:1.8}
+        body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:40px;color:#222;font-size:14px;line-height:1.8}
         .header{text-align:center;margin-bottom:24px}
         .logo{font-size:28px;font-weight:bold;letter-spacing:4px;color:#1E4A35}
         .doc-title{font-size:18px;font-weight:bold;text-align:center;margin:16px 0;color:#1E4A35;border:2px solid #D4AF37;display:inline-block;padding:4px 24px;border-radius:4px}
@@ -295,9 +302,9 @@ export default function CRMPage() {
       </div>
       <div style="text-align:center"><span class="doc-title">ใบจองซื้อบ้าน</span></div>
       <p style="text-align:right">วันที่ <span class="field">${dateStr}</span></p>
-      <p>ข้าพเจ้า <span class="field" style="min-width:200px">${lead.customer_name}</span></p>
-      <p>เบอร์โทรศัพท์ <span class="field">${lead.phone}</span></p>
-      <p>ขอจองซื้อบ้านโครงการ <strong>AVIVA ONE</strong> หมายเลขแปลง <span class="field">${plotStr}</span></p>
+      <p>ข้าพเจ้า <span class="field" style="min-width:200px">${escapeHtml(lead.customer_name)}</span></p>
+      <p>เบอร์โทรศัพท์ <span class="field">${escapeHtml(lead.phone)}</span></p>
+      <p>ขอจองซื้อบ้านโครงการ <strong>AVIVA ONE</strong> หมายเลขแปลง <span class="field">${escapeHtml(plotStr)}</span></p>
       <div class="highlight">
         <p><strong>ราคาขาย:</strong> ฿<span class="field" style="min-width:120px">${Number(lead.budget).toLocaleString()}</span> (${numberToThai(Number(lead.budget))})</p>
         <p><strong>เงินจอง:</strong> ฿<span class="field" style="min-width:120px">${bookingDeposit.toLocaleString()}</span> (${numberToThai(bookingDeposit)})</p>
@@ -310,10 +317,10 @@ export default function CRMPage() {
         <p>4. ผู้จองต้องจัดเตรียมเอกสารสำหรับขอสินเชื่อตามที่บริษัทแจ้ง</p>
       </div>
       <div class="sign">
-        <div class="sign-box"><div class="sign-line">ลงชื่อผู้จอง<br>(_________________________)<br>${lead.customer_name}</div></div>
+        <div class="sign-box"><div class="sign-line">ลงชื่อผู้จอง<br>(_________________________)<br>${escapeHtml(lead.customer_name)}</div></div>
         <div class="sign-box"><div class="sign-line">ลงชื่อตัวแทนขาย<br>(_________________________)<br>AVIVA ONE Sales</div></div>
       </div>
-      <div class="footer">เอกสารนี้ออกโดยระบบ AVIVA ONE · ${new Date().toLocaleDateString("th-TH")} · รหัส: ${lead.lead_code ?? lead.id.slice(0,8)}</div>
+      <div class="footer">เอกสารนี้ออกโดยระบบ AVIVA ONE · ${new Date().toLocaleDateString("th-TH")} · รหัส: ${escapeHtml(lead.lead_code ?? lead.id.slice(0,8))}</div>
       <script>
         function numberToThai(n){const u=["","หนึ่ง","สอง","สาม","สี่","ห้า","หก","เจ็ด","แปด","เก้า"];const p=["","สิบ","ร้อย","พัน","หมื่น","แสน","ล้าน"];if(n===0)return"ศูนย์บาทถ้วน";let r="";let m=n;const parts=[];while(m>0){parts.push(m%10);m=Math.floor(m/10);}let s="";for(let i=parts.length-1;i>=0;i--){if(parts[i]!==0)s+=u[parts[i]]+p[i];}return s+"บาทถ้วน";}
         window.onload=function(){window.print();}
@@ -323,13 +330,19 @@ export default function CRMPage() {
     if (w) { w.document.write(html); w.document.close(); }
   };
 
-  const fetchLeads = (start: string, end: string, limit = 50) => {
+  const fetchLeads = async (start: string, end: string, limit = 50) => {
     setLoading(true);
-    let q = supabase.from("leads").select("*").eq("project_id", PROJECT_ID);
-    if (start) q = q.gte("created_at_default", start);
-    if (end) q = q.lte("created_at_default", end + "T23:59:59");
-    q.order("created_at_default", { ascending: false }).limit(limit)
-      .then(({ data }) => { setLeads((data as Lead[]) ?? []); setLoading(false); });
+    try {
+      let q = supabase.from("leads").select("*").eq("project_id", PROJECT_ID);
+      if (start) q = q.gte("created_at_default", start);
+      if (end) q = q.lte("created_at_default", end + "T23:59:59");
+      const { data } = await q.order("created_at_default", { ascending: false }).limit(limit);
+      setLeads((data as Lead[]) ?? []);
+    } catch {
+      // silently fail, leave existing list
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -410,9 +423,11 @@ export default function CRMPage() {
     }
     await supabase.from("crm_logs").insert({ lead_id: crmLogLead.id, contact_channel: crmLogForm.channel, call_status: crmLogForm.callStatus, call_note: crmLogForm.note, photo_url: photoUrl });
     await supabase.from("leads").update({ last_contact_date: new Date().toISOString().split("T")[0] }).eq("id", crmLogLead.id);
+    if (crmLogForm.photoPreview) URL.revokeObjectURL(crmLogForm.photoPreview);
     setSavingLog(false);
     setCrmLogLead(null);
     setCrmLogForm(emptyCrmLog);
+    fetchLeads(dateStart, dateEnd, leadsLimit);
   };
 
   const openAdd = () => { setEditingLead(null); setForm(emptyForm); setShowModal(true); };
@@ -427,13 +442,14 @@ export default function CRMPage() {
     setSaving(true);
     const plotNum = form.plot_number ? Number(form.plot_number) : null;
     if (editingLead) {
-      await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      const { error: updateErr } = await supabase.from("leads").update({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null, updated_at: new Date().toISOString() }).eq("id", editingLead.id);
+      if (updateErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + updateErr.message, type: "error" }); return; }
       if (form.status !== editingLead.status) {
         const effectivePlot = plotNum ?? editingLead.plot_number;
         if (effectivePlot) {
           if (form.status === "Booking") {
-            await supabase.from("houses").update({ status: "booked" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
-          } else if (editingLead.status === "Booking") {
+            await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
+          } else if (editingLead.status === "Booking" && !["Booking", "Loan Process"].includes(form.status)) {
             await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", effectivePlot);
           }
         }
@@ -446,7 +462,8 @@ export default function CRMPage() {
         });
       }
     } else {
-      await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null });
+      const { error: insertErr } = await supabase.from("leads").insert({ customer_name: form.customer_name, phone: form.phone, email: form.email || null, budget: Number(form.budget) || 0, source: form.source, status: form.status, notes: form.notes, plot_number: plotNum, project_id: PROJECT_ID, ai_score: 50, next_follow_up_date: form.next_follow_up_date || null, financing_type: form.financing_type || null, urgency: form.urgency || null });
+      if (insertErr) { setSaving(false); setToast({ msg: "บันทึกไม่สำเร็จ: " + insertErr.message, type: "error" }); return; }
       await createNotification({
         type: "info",
         title: `ลูกค้าใหม่ — ${form.customer_name}`,
@@ -466,8 +483,8 @@ export default function CRMPage() {
     await supabase.from("leads").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", lead.id);
     if (lead.plot_number) {
       if (newStatus === "Booking") {
-        await supabase.from("houses").update({ status: "booked" }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);
-      } else if (lead.status === "Booking") {
+        await supabase.from("houses").update({ status: "reserved" }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);
+      } else if (BOOKING_STATUSES.includes(lead.status as LeadStatus) && !BOOKING_STATUSES.includes(newStatus)) {
         await supabase.from("houses").update({ status: "available" }).eq("project_id", PROJECT_ID).eq("plot_number", lead.plot_number);
       }
     }
@@ -1191,6 +1208,7 @@ export default function CRMPage() {
           </div>
         </div>
       )}
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

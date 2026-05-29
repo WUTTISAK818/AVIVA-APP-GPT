@@ -184,9 +184,9 @@ export default function ConstructionPage() {
     setInstHouse(house);
     setLoadingInst(true);
     setExpandedInst(null);
-    const { data: existing } = await supabase.from("contractor_installments").select("*").eq("house_id", house.id).order("installment_no");
+    const { data: existing, error: fetchErr } = await supabase.from("contractor_installments").select("*").eq("house_id", house.id).order("installment_no");
     let insts = (existing as Installment[]) ?? [];
-    if (insts.length === 0) {
+    if (!fetchErr && insts.length === 0) {
       const rows = INSTALLMENT_NAMES.map((name, i) => ({ house_id: house.id, installment_no: i + 1, name, status: "pending", amount: 0 }));
       const { data: created } = await supabase.from("contractor_installments").insert(rows).select();
       insts = (created as Installment[]) ?? [];
@@ -277,7 +277,7 @@ export default function ConstructionPage() {
     w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
     <title>รายงานประจำวัน — ฝ่ายก่อสร้าง</title>
     <style>
-      *{box-sizing:border-box}body{font-family:'Sarabun','Noto Sans Thai',Arial,sans-serif;margin:0;padding:32px;font-size:12px;color:#1a1a1a}
+      *{box-sizing:border-box}body{font-family:'IBM Plex Sans Thai','Noto Sans Thai',Arial,sans-serif;margin:0;padding:32px;font-size:12px;color:#1a1a1a}
       .header{border-bottom:3px solid #1E4A35;padding-bottom:12px;margin-bottom:16px}
       .logo{font-size:20px;font-weight:900;color:#1E4A35;letter-spacing:2px}.logo span{color:#D4AF37}
       h2{font-size:15px;font-weight:700;margin:4px 0 0;color:#333}.meta{font-size:11px;color:#666;margin-top:4px}
@@ -382,6 +382,7 @@ export default function ConstructionPage() {
     let reportId = editingReport?.id ?? null;
     if (editingReport) {
       await supabase.from("construction_reports").update({ work_detail: form.work_detail, work_type: form.work_type, progress: Number(form.progress) || 0, issue: form.issue, updated_at: new Date().toISOString() }).eq("id", editingReport.id);
+      await supabase.from("houses").update({ progress: Number(form.progress) || 0, status: form.new_status }).eq("id", editingReport.house_id);
     } else {
       if (!form.house_id) { setSaving(false); return; }
       const { data: inserted } = await supabase.from("construction_reports").insert({ house_id: form.house_id, work_detail: form.work_detail, work_type: form.work_type, progress: Number(form.progress) || 0, issue: form.issue, reported_by: form.reported_by || null }).select().single();
