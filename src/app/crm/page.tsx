@@ -73,6 +73,15 @@ interface CrmLog {
   photo_url: string | null;
 }
 
+interface ApprovalLog {
+  id: string;
+  workflow_type: string;
+  source_doc_index: string;
+  action_taken: string;
+  created_at: string;
+  amount: number | null;
+}
+
 const sourceColor: Record<string, string> = {
   Facebook: "bg-blue-500/20 text-blue-400",
   TikTok: "bg-pink-500/20 text-pink-400",
@@ -154,6 +163,8 @@ export default function CRMPage() {
   const [uploadingLogPhoto, setUploadingLogPhoto] = useState(false);
   const [leadLogs, setLeadLogs] = useState<CrmLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [leadApprovals, setLeadApprovals] = useState<ApprovalLog[]>([]);
+  const [loadingApprovals, setLoadingApprovals] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
 
   useEffect(() => {
@@ -164,14 +175,20 @@ export default function CRMPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedLead) { setLeadLogs([]); return; }
+    if (!selectedLead) { setLeadLogs([]); setLeadApprovals([]); return; }
     setLoadingLogs(true);
+    setLoadingApprovals(true);
     supabase.from("crm_logs")
       .select("id,contact_channel,call_status,call_note,created_at,photo_url")
       .eq("lead_id", selectedLead.id)
       .order("created_at", { ascending: false })
       .limit(10)
       .then(({ data }) => { setLeadLogs((data ?? []) as CrmLog[]); setLoadingLogs(false); });
+    supabase.from("approval_logs")
+      .select("id,workflow_type,source_doc_index,action_taken,created_at,amount")
+      .eq("source_record_id", selectedLead.id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => { setLeadApprovals((data ?? []) as ApprovalLog[]); setLoadingApprovals(false); });
   }, [selectedLead]);
 
   const fetchSalesActs = () => {
@@ -1165,6 +1182,42 @@ export default function CRMPage() {
               )}>AI {selectedLead.ai_score}%</span>
             </div>
 
+            {/* ข้อมูลเพิ่มเติม */}
+            <div className="grid grid-cols-2 gap-2">
+              {selectedLead.email && (
+                <div className="col-span-2 bg-aviva-bg rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-aviva-secondary mb-0.5">อีเมล</p>
+                  <p className="text-xs text-aviva-text">{selectedLead.email}</p>
+                </div>
+              )}
+              {selectedLead.financing_type && selectedLead.financing_type !== "ไม่ระบุ" && (
+                <div className="bg-aviva-bg rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-aviva-secondary mb-0.5">การเงิน</p>
+                  <p className="text-xs text-aviva-text">{selectedLead.financing_type}</p>
+                </div>
+              )}
+              {selectedLead.urgency && selectedLead.urgency !== "ปกติ" && (
+                <div className="bg-aviva-bg rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-aviva-secondary mb-0.5">ความเร่งด่วน</p>
+                  <p className={`text-xs font-medium ${selectedLead.urgency === "เร่งด่วน" ? "text-red-400" : selectedLead.urgency === "สูง" ? "text-orange-400" : "text-aviva-text"}`}>
+                    {selectedLead.urgency}
+                  </p>
+                </div>
+              )}
+              {selectedLead.next_follow_up_date && (
+                <div className="bg-aviva-bg rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-aviva-secondary mb-0.5">นัดติดตามครั้งถัดไป</p>
+                  <p className="text-xs text-aviva-gold">{new Date(selectedLead.next_follow_up_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                </div>
+              )}
+              {selectedLead.last_contact_date && (
+                <div className="bg-aviva-bg rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-aviva-secondary mb-0.5">ติดต่อล่าสุด</p>
+                  <p className="text-xs text-aviva-text">{new Date(selectedLead.last_contact_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>
+                </div>
+              )}
+            </div>
+
             {selectedLead.notes && (
               <p className="text-xs text-aviva-secondary bg-aviva-bg rounded-xl px-3 py-2 leading-relaxed">{selectedLead.notes}</p>
             )}
@@ -1195,6 +1248,43 @@ export default function CRMPage() {
             ) : (
               <p className="text-xs text-aviva-secondary/50 text-center py-1">ยังไม่มีประวัติการติดต่อ</p>
             )}
+
+            {/* ประวัติเอกสาร/อนุมัติ */}
+            {loadingApprovals ? (
+              <div className="h-10 rounded-xl bg-aviva-bg/50 animate-pulse" />
+            ) : leadApprovals.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold text-aviva-secondary mb-1.5">เอกสาร / ประวัติอนุมัติ ({leadApprovals.length})</p>
+                <div className="space-y-1.5">
+                  {leadApprovals.map(appr => {
+                    const wfLabel: Record<string, string> = {
+                      Contract_Approval: "สัญญาซื้อขาย", Booking_Deposit: "ใบจอง",
+                      Finance_Approval: "อนุมัติการเงิน",
+                    };
+                    const statusColor: Record<string, string> = {
+                      Pending: "text-yellow-400 bg-yellow-500/10",
+                      Approved: "text-green-400 bg-green-500/10",
+                      Rejected: "text-red-400 bg-red-500/10",
+                    };
+                    return (
+                      <div key={appr.id} className="bg-aviva-bg rounded-xl px-3 py-2 text-xs">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-aviva-text font-medium">{wfLabel[appr.workflow_type] ?? appr.workflow_type}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusColor[appr.action_taken] ?? "text-aviva-secondary bg-aviva-bg"}`}>
+                            {appr.action_taken}
+                          </span>
+                        </div>
+                        <p className="text-aviva-secondary leading-relaxed truncate">{appr.source_doc_index}</p>
+                        <div className="flex items-center justify-between mt-0.5">
+                          {appr.amount != null && <span className="text-aviva-gold">฿{Number(appr.amount).toLocaleString()}</span>}
+                          <span className="text-aviva-secondary/60 ml-auto">{new Date(appr.created_at).toLocaleDateString("th-TH")}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => { setCrmLogLead(selectedLead); setSelectedLead(null); }}
