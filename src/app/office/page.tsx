@@ -131,9 +131,9 @@ function FinanceContent() {
   };
 
   const handleSave = async () => {
-    if (!form.amount || !form.description) return;
-    setSaving(true);
     const amt = Number(form.amount);
+    if (!form.description?.trim() || isNaN(amt) || amt <= 0) return;
+    setSaving(true);
     if (amt >= 100000) {
       const finDocNum = await generateDocNumber("FIN");
       const { data } = await supabase.from("approvals").insert({
@@ -1260,7 +1260,7 @@ function HRContent() {
   const [saving, setSaving] = useState(false);
   const [filterDept, setFilterDept] = useState("ทั้งหมด");
   const [kpiModalHR, setKpiModalHR] = useState<"employees" | "probation" | "salary" | null>(null);
-  const [hrTab, setHrTab] = useState<"บุคคล" | "เงินเดือน">("บุคคล");
+  const [hrTab, setHrTab] = useState<"บุคคล" | "เงินเดือน" | "การลา">("บุคคล");
 
   const fetchEmployees = () => {
     supabase.from("employees").select("*")
@@ -1308,7 +1308,7 @@ function HRContent() {
     <>
       <div className="px-4 pt-4 pb-0 max-w-lg mx-auto">
         <div className="flex gap-2">
-          {(["บุคคล", "เงินเดือน"] as const).map(t => (
+          {(["บุคคล", "เงินเดือน", "การลา"] as const).map(t => (
             <button key={t} onClick={() => setHrTab(t)}
               className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
                 hrTab === t ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
@@ -1318,6 +1318,7 @@ function HRContent() {
       </div>
 
       {hrTab === "เงินเดือน" && <PayrollContent />}
+      {hrTab === "การลา" && <LeaveRequestContent />}
 
       {hrTab === "บุคคล" && (
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
@@ -1601,6 +1602,195 @@ function HRContent() {
         </div>
       )}
     </>
+  );
+}
+
+// ─── Leave Request ────────────────────────────────────────────────────────────
+
+const LEAVE_TYPES = ["ลาป่วย", "ลาพักร้อน", "ลากิจ", "ลาครอบครัว", "ลาอื่นๆ"] as const;
+type LeaveType = typeof LEAVE_TYPES[number];
+
+interface LeaveLog {
+  approval_id: string;
+  source_doc_index: string;
+  action_taken: string;
+  created_at: string;
+  amount: number | null;
+}
+
+const emptyLeaveForm = {
+  leave_type: "ลาป่วย" as LeaveType,
+  date_from: "",
+  date_to: "",
+  reason: "",
+};
+
+function LeaveRequestContent() {
+  const user = useCurrentUser();
+  const [leaveLogs, setLeaveLogs] = useState<LeaveLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState(emptyLeaveForm);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
+
+  const daysCount = form.date_from && form.date_to
+    ? Math.max(1, Math.ceil((new Date(form.date_to).getTime() - new Date(form.date_from).getTime()) / 86_400_000) + 1)
+    : 0;
+
+  const fetchLeaveLogs = () => {
+    supabase.from("approval_logs").select("approval_id,source_doc_index,action_taken,created_at,amount")
+      .eq("workflow_type", "Leave_Request")
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => { setLeaveLogs((data as LeaveLog[]) ?? []); setLoading(false); });
+  };
+
+  useEffect(() => { if (user) fetchLeaveLogs(); }, [user]);
+
+  const handleSubmit = async () => {
+    if (!form.date_from || !form.date_to || !form.reason.trim()) return;
+    setSaving(true);
+    const submitter = user?.full_name ?? user?.email ?? "Unknown";
+    const dept = user?.department ?? "ไม่ระบุ";
+    const dateStr = `${form.date_from} ถึง ${form.date_to} (${daysCount} วัน)`;
+    const docNum = await generateDocNumber("LEAVE");
+
+    const { data: leaveData } = await supabase.from("leave_requests").insert({
+      employee_name: submitter,
+      employee_dept: dept,
+      leave_type: form.leave_type,
+      date_from: form.date_from,
+      date_to: form.date_to,
+      days_count: daysCount,
+      reason: form.reason.trim(),
+      status: "pending",
+    }).select().single();
+
+    await supabase.from("approval_logs").insert({
+      workflow_type: "Leave_Request",
+      source_doc_index: `${docNum} | ${form.leave_type} | ${dateStr} | โดย ${submitter} (${dept}) | เหตุผล: ${form.reason.trim()}`,
+      source_record_id: leaveData?.id ?? null,
+      current_approver_role: "manager",
+      action_taken: "Pending",
+      amount: null,
+    });
+
+    await createNotification({
+      type: "approval",
+      title: `ขอลา ${form.leave_type} — ${submitter}`,
+      message: `${dateStr} · เหตุผล: ${form.reason.trim()}`,
+      from_dept: dept,
+    });
+
+    setSaving(false);
+    setShowModal(false);
+    setForm(emptyLeaveForm);
+    setToast({ msg: `ส่งคำขอลาแล้ว — ${docNum}`, type: "success" });
+    fetchLeaveLogs();
+  };
+
+  const pendingLeave = leaveLogs.filter(l => l.action_taken === "Pending").length;
+
+  return (
+    <div className="px-4 py-5 max-w-lg mx-auto space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-aviva-text">คำขอลาของฉัน</p>
+          {pendingLeave > 0 && <p className="text-xs text-yellow-400 mt-0.5">{pendingLeave} รายการรออนุมัติ</p>}
+        </div>
+        <button onClick={() => setShowModal(true)}
+          className="flex items-center gap-1.5 bg-aviva-gold text-aviva-bg text-xs font-bold px-3 py-2 rounded-xl">
+          <Plus size={13} /> ยื่นคำขอลา
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        {loading ? [1,2,3].map(i => <div key={i} className="h-16 rounded-2xl bg-aviva-card/50 animate-pulse" />) :
+        leaveLogs.length === 0 ? (
+          <GlassCard className="p-8 text-center">
+            <Briefcase size={24} className="text-aviva-secondary/30 mx-auto mb-2" />
+            <p className="text-aviva-secondary text-sm">ยังไม่มีคำขอลา</p>
+          </GlassCard>
+        ) : leaveLogs.map(log => {
+          const parts = log.source_doc_index.split(" | ");
+          const docNum = parts[0];
+          const leaveType = parts[1] ?? "";
+          const dateInfo = parts[2] ?? "";
+          const statusCls = log.action_taken === "Approved" ? "bg-green-500/20 text-green-400" :
+            log.action_taken === "Rejected" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400";
+          const statusLabel = log.action_taken === "Approved" ? "✓ อนุมัติ" :
+            log.action_taken === "Rejected" ? "✗ ปฏิเสธ" : "รออนุมัติ";
+          return (
+            <GlassCard key={log.approval_id} className="p-3 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-bold text-aviva-gold font-mono">{docNum}</span>
+                  <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-full font-medium", statusCls)}>{statusLabel}</span>
+                  {leaveType && <span className="text-[10px] text-aviva-gold bg-aviva-gold/10 px-1.5 py-0.5 rounded-full">{leaveType}</span>}
+                </div>
+                <p className="text-[10px] text-aviva-secondary/60 flex-shrink-0">
+                  {new Date(log.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                </p>
+              </div>
+              {dateInfo && <p className="text-[11px] text-aviva-secondary">{dateInfo}</p>}
+            </GlassCard>
+          );
+        })}
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-aviva-text">ยื่นคำขอลา</h2>
+              <button onClick={() => setShowModal(false)}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ผู้ยื่น</label>
+                <div className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-xl px-3 py-2 text-sm text-aviva-secondary">
+                  {user?.full_name ?? user?.email ?? "—"} ({user?.department ?? "ไม่ระบุ"})
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">ประเภทการลา <span className="text-red-400">*</span></label>
+                <select value={form.leave_type} onChange={e => setForm(p => ({ ...p, leave_type: e.target.value as LeaveType }))}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  {LEAVE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">วันที่เริ่ม <span className="text-red-400">*</span></label>
+                  <input type="date" value={form.date_from} onChange={e => setForm(p => ({ ...p, date_from: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+                <div>
+                  <label className="text-xs text-aviva-secondary mb-1 block">วันที่สิ้นสุด <span className="text-red-400">*</span></label>
+                  <input type="date" value={form.date_to} onChange={e => setForm(p => ({ ...p, date_to: e.target.value }))}
+                    className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+                </div>
+              </div>
+              {daysCount > 0 && (
+                <p className="text-xs text-aviva-gold bg-aviva-gold/10 rounded-xl px-3 py-2">จำนวนวันลา: {daysCount} วัน</p>
+              )}
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">เหตุผล <span className="text-red-400">*</span></label>
+                <textarea value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))}
+                  placeholder="ระบุเหตุผลการลา..." rows={3}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none" />
+              </div>
+            </div>
+            <button onClick={handleSubmit} disabled={saving || !form.date_from || !form.date_to || !form.reason.trim()}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-2xl text-sm disabled:opacity-50">
+              {saving ? "กำลังส่ง..." : "ส่งคำขอลา"}
+            </button>
+          </div>
+        </div>
+      )}
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+    </div>
   );
 }
 

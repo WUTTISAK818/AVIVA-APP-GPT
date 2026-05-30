@@ -508,6 +508,17 @@ export default function CRMPage() {
         from_dept: "ฝ่ายขาย",
         to_dept: "ฝ่ายขาย",
       });
+      if (newStatus === "Closed Deal") {
+        const docNum = await generateDocNumber("CONTRACT");
+        await supabase.from("approval_logs").insert({
+          workflow_type: "Contract_Approval",
+          source_doc_index: `${docNum} | ${lead.customer_name}${lead.plot_number ? ` แปลง ${lead.plot_number}` : ""} | โดย ${user?.full_name ?? user?.email ?? "Unknown"}`,
+          source_record_id: lead.id,
+          current_approver_role: "manager",
+          action_taken: "Pending",
+          amount: lead.budget ?? null,
+        });
+      }
     }
     setSelectedLead(null);
     fetchLeads(dateStart, dateEnd, leadsLimit);
