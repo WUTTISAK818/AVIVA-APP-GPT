@@ -1,9 +1,11 @@
-// Company and estate constants — update these when official info is available
 export const COMPANY = {
-  name: "บริษัท เอวีวา ดีเวลลอปเม้นท์ จำกัด",
+  name: "บริษัท อลิสา พร็อพเพอร์ตี้ ดีเวลลอปเม้นท์ จำกัด",
   estate: "AVIVA Private",
-  address: "99 หมู่ 1 ต.บึงยี่โถ อ.ธัญบุรี จ.ปทุมธานี 12130",
-  phone: "02-000-0000",
-  tax_id: "0105565000000",
-  manager: "ผู้จัดการ",
+  address: "93 ซอยตรอกสวายเรียง ต.ในเมือง อ.เมืองนครราชสีมา จ.นครราชสีมา",
+  phone: "",
+  tax_id: "0305564005951",
+  director1: "นายวุฒิศักดิ์ ภาวะศิลป์",
+  director2: "นางนิศารัตน์ ภาวะศิลป์",
+  registered_capital: "1,000,000 บาท",
+  registered_date: "27 กรกฎาคม 2564",
 };

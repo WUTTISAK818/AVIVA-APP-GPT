@@ -2913,7 +2913,7 @@ function PayrollContent() {
         <div class="sign-box">ลงชื่อผู้รับเงิน<br><br>(_________________________)<br>${pr.full_name}</div>
         <div class="sign-box">ลงชื่อผู้อนุมัติ<br><br>(_________________________)<br>ผู้บริหาร</div>
       </div>
-      <div class="footer">เอกสารนี้ออกโดย AVIVA Private · ${new Date().toLocaleDateString("th-TH")}</div>
+      <div class="footer">บริษัท อลิสา พร็อพเพอร์ตี้ ดีเวลลอปเม้นท์ จำกัด · เลขทะเบียน 0305564005951 · ${new Date().toLocaleDateString("th-TH")}</div>
       <div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div>
       </body></html>`;
     const w = window.open("", "_blank", "width=700,height=600");
