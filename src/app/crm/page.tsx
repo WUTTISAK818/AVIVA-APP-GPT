@@ -372,9 +372,9 @@ export default function CRMPage() {
       </div>
       <div class="sign">
         <div class="sign-box"><div class="sign-line">ลงชื่อผู้จอง<br>(_________________________)<br>${escapeHtml(lead.customer_name)}</div></div>
-        <div class="sign-box"><div class="sign-line">ลงชื่อตัวแทนขาย<br>(_________________________)<br>AVIVA Private</div></div>
+        <div class="sign-box"><div class="sign-line">ลงชื่อตัวแทนบริษัท<br>(_________________________)<br>บริษัท อลิสา พร็อพเพอร์ตี้ ดีเวลลอปเม้นท์ จำกัด</div></div>
       </div>
-      <div class="footer">เอกสารนี้ออกโดย AVIVA Private · ${new Date().toLocaleDateString("th-TH")} · รหัส: ${escapeHtml(lead.lead_code ?? lead.id.slice(0,8))}</div>
+      <div class="footer">บริษัท อลิสา พร็อพเพอร์ตี้ ดีเวลลอปเม้นท์ จำกัด · เลขทะเบียน 0305564005951 · หมู่บ้าน AVIVA Private · ${new Date().toLocaleDateString("th-TH")} · รหัส: ${escapeHtml(lead.lead_code ?? lead.id.slice(0,8))}</div>
       <div class="btns"><button class="btn btn-p" onclick="window.print()">พิมพ์</button><button class="btn btn-c" onclick="window.close()">ปิด</button></div>
       </body></html>`;
     const w = window.open("", "_blank", "width=800,height=700");
