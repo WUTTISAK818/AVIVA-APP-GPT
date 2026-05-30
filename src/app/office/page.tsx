@@ -39,6 +39,34 @@ function formatThb(n: number) {
   return n.toLocaleString("th-TH");
 }
 
+// ─── Construction Payment Interfaces ─────────────────────────────────────────
+
+interface ContractorInstallmentPay {
+  id: string;
+  installment_no: number;
+  name: string;
+  amount: number;
+  status: string;
+  house_id: string;
+  house_number?: string;
+}
+
+interface AccountingEntry {
+  id: string;
+  contractor_installment_id: string;
+  amount: number;
+  account_debit: string;
+  account_credit: string;
+  payment_method: string | null;
+  reference_number: string | null;
+  entry_date: string;
+  entered_by: string | null;
+  notes: string | null;
+  created_at: string;
+  inst_name?: string;
+  house_number?: string;
+}
+
 // ─── Finance ──────────────────────────────────────────────────────────────────
 
 interface Transaction {
@@ -77,12 +105,16 @@ function FinanceContent() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyFinanceForm);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"txn" | "approval">("txn");
+  const [activeTab, setActiveTab] = useState<"txn" | "approval" | "construction">("txn");
   const [period, setPeriod] = useState<Period>("month");
   const [dateStart, setDateStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`; });
   const [dateEnd, setDateEnd] = useState(() => new Date().toISOString().split("T")[0]);
   const [finLimit, setFinLimit] = useState(50);
   const [kpiModal, setKpiModal] = useState<"income" | "expense" | "cashflow" | "pending" | null>(null);
+  const [approvedInsts, setApprovedInsts] = useState<ContractorInstallmentPay[]>([]);
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [payingInst, setPayingInst] = useState<ContractorInstallmentPay | null>(null);
+  const [payForm, setPayForm] = useState({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "" });
 
   const fetchData = (limit = finLimit) => {
     let txnQ = supabase.from("finance_transactions").select("*").eq("project_id", PROJECT_ID);
@@ -102,7 +134,52 @@ function FinanceContent() {
     });
   };
 
-  useEffect(() => { setFinLimit(50); fetchData(50); }, [dateStart, dateEnd]);
+  const fetchApprovedInsts = async () => {
+    const { data } = await supabase.from("contractor_installments")
+      .select("id,installment_no,name,amount,status,house_id,houses(house_number)")
+      .eq("status", "approved")
+      .order("installment_no");
+    const rows = ((data ?? []) as Record<string, unknown>[]).map(r => ({
+      id: r.id as string,
+      installment_no: r.installment_no as number,
+      name: r.name as string,
+      amount: r.amount as number,
+      status: r.status as string,
+      house_id: r.house_id as string,
+      house_number: ((r.houses as Record<string, unknown> | null)?.house_number as string) ?? undefined,
+    }));
+    setApprovedInsts(rows);
+  };
+
+  const handlePayInstallment = async () => {
+    if (!payingInst) return;
+    setSaving(true);
+    await supabase.from("accounting_entries").insert({
+      contractor_installment_id: payingInst.id,
+      amount: payingInst.amount,
+      account_debit: "2100 เจ้าหนี้ผู้รับเหมา",
+      account_credit: "1100 เงินสด/เงินฝากธนาคาร",
+      payment_method: payForm.payment_method || null,
+      reference_number: payForm.reference_number || null,
+      entry_date: payForm.entry_date,
+      entered_by: user?.full_name ?? user?.email ?? null,
+      notes: payForm.notes || null,
+    });
+    await supabase.from("contractor_installments").update({ status: "paid" }).eq("id", payingInst.id);
+    await createNotification({
+      type: "success",
+      title: `${payingInst.name} — บันทึกจ่ายแล้ว`,
+      message: `ยูนิต ${payingInst.house_number ?? payingInst.house_id} — ฿${payingInst.amount.toLocaleString()}`,
+      from_dept: "ฝ่ายการเงิน",
+    });
+    setSaving(false);
+    setShowPayModal(false);
+    setPayingInst(null);
+    setPayForm({ payment_method: "โอนเงิน", reference_number: "", entry_date: new Date().toISOString().split("T")[0], notes: "" });
+    fetchApprovedInsts();
+  };
+
+  useEffect(() => { setFinLimit(50); fetchData(50); fetchApprovedInsts(); }, [dateStart, dateEnd]);
 
   const totalIncome = transactions
     .filter(t => t.transaction_type === "income")
@@ -267,12 +344,13 @@ function FinanceContent() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {[
           { k: "txn", l: "รายการทั้งหมด" },
           { k: "approval", l: `รออนุมัติ${pendingApprovals > 0 ? ` (${pendingApprovals})` : ""}` },
+          { k: "construction", l: `เบิกจ่ายก่อสร้าง${approvedInsts.length > 0 ? ` (${approvedInsts.length})` : ""}` },
         ].map(({ k, l }) => (
-          <button key={k} onClick={() => setActiveTab(k as "txn" | "approval")}
+          <button key={k} onClick={() => setActiveTab(k as "txn" | "approval" | "construction")}
             className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
               activeTab === k
                 ? "bg-aviva-gold text-aviva-bg border-aviva-gold"
@@ -352,6 +430,75 @@ function FinanceContent() {
               </GlassCard>
             ))
           }
+        </div>
+      )}
+
+      {activeTab === "construction" && (
+        <div className="space-y-3">
+          <SectionHeader title="เบิกจ่ายก่อสร้าง" subtitle="งวดงานที่อนุมัติแล้ว — รอบันทึกจ่าย" />
+          {approvedInsts.length === 0 ? (
+            <GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ไม่มีงวดงานที่รอจ่าย</p></GlassCard>
+          ) : approvedInsts.map(inst => (
+            <GlassCard key={inst.id} className="p-4">
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-aviva-text">{inst.name}</p>
+                  {inst.house_number && <p className="text-xs text-aviva-secondary mt-0.5">ยูนิต: {inst.house_number}</p>}
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-aviva-gold">฿{inst.amount.toLocaleString("th-TH")}</p>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">อนุมัติแล้ว</span>
+                </div>
+              </div>
+              <button onClick={() => { setPayingInst(inst); setShowPayModal(true); }}
+                className="w-full py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium">
+                บันทึกจ่าย
+              </button>
+            </GlassCard>
+          ))}
+        </div>
+      )}
+
+      {/* Pay Installment Modal */}
+      {showPayModal && payingInst && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10 space-y-4 mb-14">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-aviva-text">บันทึกจ่าย — {payingInst.name}</h2>
+              <button onClick={() => { setShowPayModal(false); setPayingInst(null); }}><X size={20} className="text-aviva-secondary" /></button>
+            </div>
+            <p className="text-sm text-aviva-secondary">จำนวนเงิน: <span className="text-aviva-gold font-bold">฿{payingInst.amount.toLocaleString()}</span></p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">วิธีการชำระเงิน</label>
+                <select value={payForm.payment_method} onChange={e => setPayForm({ ...payForm, payment_method: e.target.value })}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60">
+                  {["โอนเงิน", "เช็ค", "เงินสด"].map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">เลขที่อ้างอิง (ถ้ามี)</label>
+                <input type="text" value={payForm.reference_number} onChange={e => setPayForm({ ...payForm, reference_number: e.target.value })}
+                  placeholder="เลขที่โอน / เลขที่เช็ค"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">วันที่จ่าย</label>
+                <input type="date" value={payForm.entry_date} onChange={e => setPayForm({ ...payForm, entry_date: e.target.value })}
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text outline-none focus:border-aviva-gold/60" />
+              </div>
+              <div>
+                <label className="text-xs text-aviva-secondary mb-1 block">หมายเหตุ</label>
+                <input type="text" value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })}
+                  placeholder="หมายเหตุเพิ่มเติม"
+                  className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60" />
+              </div>
+            </div>
+            <button onClick={handlePayInstallment} disabled={saving}
+              className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">
+              {saving ? "กำลังบันทึก..." : "ยืนยันบันทึกจ่าย"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -507,6 +654,8 @@ function AccountingContent() {
   const [acctEnd, setAcctEnd] = useState(() => new Date().toISOString().split("T")[0]);
   const [acctLimit, setAcctLimit] = useState(50);
   const [kpiModalAcct, setKpiModalAcct] = useState<"all" | "income" | "expense" | null>(null);
+  const [acctEntries, setAcctEntries] = useState<AccountingEntry[]>([]);
+  const [acctView, setAcctView] = useState<"receipts" | "construction">("receipts");
 
   const fetchReceipts = (limit = acctLimit) => {
     let q = supabase.from("receipts").select("*").eq("project_id", PROJECT_ID);
@@ -519,7 +668,15 @@ function AccountingContent() {
       });
   };
 
-  useEffect(() => { setAcctLimit(50); fetchReceipts(50); }, [acctStart, acctEnd]);
+  const fetchAccountingEntries = async () => {
+    const { data } = await supabase.from("accounting_entries")
+      .select("*")
+      .order("entry_date", { ascending: false })
+      .limit(50);
+    setAcctEntries((data as AccountingEntry[]) ?? []);
+  };
+
+  useEffect(() => { setAcctLimit(50); fetchReceipts(50); fetchAccountingEntries(); }, [acctStart, acctEnd]);
 
   const totalExpense = receipts.filter(r => r.receipt_type === "expense").reduce((s, r) => s + Number(r.amount), 0);
   const totalIncome = receipts.filter(r => r.receipt_type === "income").reduce((s, r) => s + Number(r.amount), 0);
@@ -632,7 +789,43 @@ function AccountingContent() {
         ))}
       </div>
 
-      {/* Receipt List */}
+      {/* View toggle */}
+      <div className="flex gap-2">
+        {[
+          { k: "receipts", l: "บิล / ใบเสร็จ" },
+          { k: "construction", l: `บัญชีก่อสร้าง${acctEntries.length > 0 ? ` (${acctEntries.length})` : ""}` },
+        ].map(({ k, l }) => (
+          <button key={k} onClick={() => setAcctView(k as "receipts" | "construction")}
+            className={clsx("flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
+              acctView === k ? "bg-aviva-gold text-aviva-bg border-aviva-gold" : "bg-aviva-card text-aviva-secondary border-aviva-gold/10"
+            )}>{l}</button>
+        ))}
+      </div>
+
+      {acctView === "construction" && (
+        <div className="space-y-2">
+          <SectionHeader title="บัญชีก่อสร้าง" subtitle="รายการจ่ายงวดผู้รับเหมา" />
+          {acctEntries.length === 0 ? (
+            <GlassCard className="p-6 text-center"><p className="text-aviva-secondary text-sm">ยังไม่มีรายการ</p></GlassCard>
+          ) : acctEntries.map(e => (
+            <GlassCard key={e.id} className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-aviva-text truncate">{e.notes ?? e.account_debit}</p>
+                  <p className="text-xs text-aviva-secondary mt-0.5">{e.entry_date} · {e.payment_method ?? "—"}</p>
+                  {e.reference_number && <p className="text-[10px] text-aviva-secondary/60">Ref: {e.reference_number}</p>}
+                  <div className="text-[10px] text-aviva-secondary/60 mt-0.5">
+                    Dr: {e.account_debit} / Cr: {e.account_credit}
+                  </div>
+                </div>
+                <p className="text-sm font-bold text-red-400 flex-shrink-0">-฿{e.amount.toLocaleString()}</p>
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      )}
+
+      {acctView === "receipts" && (
       <div>
         <SectionHeader title="รายการบิล / ใบเสร็จ" subtitle={loading ? "กำลังโหลด..." : `${receipts.length} รายการ`} />
         <div className="space-y-2">
@@ -677,6 +870,7 @@ function AccountingContent() {
           )}
         </div>
       </div>
+      )}
 
       {/* Add Receipt Modal */}
       {showModal && (
