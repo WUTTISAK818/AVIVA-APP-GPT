@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { BadgeCheck, X, CheckCircle, XCircle, ShieldAlert, Clock, AlertTriangle, Search, Download, FileText, BookOpen } from "lucide-react";
 import clsx from "clsx";
 import SectionHeader from "@/components/SectionHeader";
@@ -334,6 +334,17 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
       } else if (log.workflow_type === "Booking_Deposit") {
         const { error } = await supabase.from("leads").update({ status: "Booking" }).eq("id", log.source_record_id);
         if (error) return error.message;
+      } else if (log.workflow_type === "Finance_Approval") {
+        const { error: e1 } = await supabase.from("approvals").update({ status: "approved", approved_by: user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
+        if (e1) return e1.message;
+        if (log.amount && log.amount > 0) {
+          const desc = log.source_doc_index.split(" | ")[1] ?? "รายจ่ายที่อนุมัติ";
+          const { error: e2 } = await supabase.from("finance_transactions").insert({ project_id: "aaaaaaaa-0000-0000-0000-000000000001", transaction_type: "expense", amount: -log.amount, description: desc });
+          if (e2) return e2.message;
+        }
+      } else if (log.workflow_type === "Leave_Request") {
+        const { error } = await supabase.from("leave_requests").update({ status: "approved", approved_by: user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
+        if (error) return error.message;
       }
     } catch (e) { return String(e); }
     return null;
@@ -350,6 +361,12 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
         if (error) return error.message;
       } else if (log.workflow_type === "Document_Approval") {
         const { error } = await supabase.from("documents").update({ status: "rejected" }).eq("id", log.source_record_id);
+        if (error) return error.message;
+      } else if (log.workflow_type === "Finance_Approval") {
+        const { error } = await supabase.from("approvals").update({ status: "rejected" }).eq("id", log.source_record_id);
+        if (error) return error.message;
+      } else if (log.workflow_type === "Leave_Request") {
+        const { error } = await supabase.from("leave_requests").update({ status: "rejected" }).eq("id", log.source_record_id);
         if (error) return error.message;
       }
     } catch (e) { return String(e); }
@@ -527,6 +544,7 @@ export default function ApprovalsPage() {
   const [logs, setLogs] = useState<ApprovalLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<MainTab>("approvals");
+  const slaNotifiedRef = useRef(false);
 
   useEffect(() => {
     if (!user) return;
@@ -546,6 +564,18 @@ export default function ApprovalsPage() {
     const sla = SLA_DAYS[l.workflow_type] ?? 3;
     return Math.floor((Date.now() - new Date(l.created_at).getTime()) / 86_400_000) > sla;
   }).length;
+
+  useEffect(() => {
+    if (!loading && overdueCount > 0 && !slaNotifiedRef.current) {
+      slaNotifiedRef.current = true;
+      createNotification({
+        type: "info",
+        title: `${overdueCount} รายการเกิน SLA`,
+        message: "มีเอกสารค้างเกินกำหนด — กรุณาตรวจสอบและดำเนินการโดยด่วน",
+        from_dept: "ระบบ",
+      });
+    }
+  }, [loading, overdueCount]);
 
   return (
     <div className="min-h-screen bg-aviva-bg pb-24">

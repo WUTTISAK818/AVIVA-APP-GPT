@@ -32,7 +32,7 @@ function checkRateLimit(ip: string): boolean {
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
-  if (!checkRateLimit(ip)) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  if (!checkRateLimit(ip)) return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": "60" } });
 
   // C1: Auth is mandatory — no token = 401
   const authHeader = req.headers.get("Authorization");
