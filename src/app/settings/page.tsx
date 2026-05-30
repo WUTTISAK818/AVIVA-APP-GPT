@@ -146,25 +146,18 @@ export default function SettingsPage() {
                       className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-lg px-3 py-2 text-sm text-aviva-text focus:outline-none focus:border-aviva-gold/50" />
                   </div>
                 ))}
-                <div>
-                  <label className="text-xs text-aviva-secondary mb-1 block">ยูนิตว่าง (คำนวณอัตโนมัติ)</label>
-                  <div className="w-full bg-aviva-bg/50 border border-aviva-gold/10 rounded-lg px-3 py-2 text-sm text-aviva-secondary">
-                    {Number(projectForm.total_units) - Number(projectForm.sold_units)}
-                  </div>
-                </div>
               </div>
-              {saveError && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{saveError}</p>}
+              {saveError && <p className="text-xs text-red-400">{saveError}</p>}
               <button onClick={saveProject} disabled={saving}
-                className="w-full flex items-center justify-center gap-2 bg-aviva-gold text-aviva-bg font-semibold py-2.5 rounded-xl text-sm disabled:opacity-60 transition-opacity">
-                {savedOk ? <Check size={16} /> : <Save size={16} />}
-                {savedOk ? "บันทึกแล้ว!" : saving ? "กำลังบันทึก..." : "บันทึกข้อมูลโครงการ"}
+                className="w-full bg-aviva-gold text-aviva-bg font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+                {savedOk ? <><Check size={14} /> บันทึกแล้ว</> : saving ? "กำลังบันทึก..." : <><Save size={14} /> บันทึกข้อมูลโครงการ</>}
               </button>
             </div>
           </GlassCard>
         )}
         <div className="pt-2 pb-4 text-center space-y-1">
           <p className="text-xs font-bold text-aviva-gold tracking-widest">AVIVA ONE</p>
-          <p className="text-[11px] text-aviva-secondary/60">Version 2.9.18</p>
+          <p className="text-[11px] text-aviva-secondary/60">Version 2.9.19</p>
           <p className="text-[10px] text-aviva-secondary/30">Built with ❤️ by AVIVA Team</p>
         </div>
       </div>
