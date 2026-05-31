@@ -120,7 +120,7 @@ export default function NotificationBell() {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 top-12 w-80 bg-aviva-card border border-aviva-gold/20 rounded-2xl shadow-2xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-12 w-80 max-w-[min(320px,calc(100vw-16px))] bg-aviva-card border border-aviva-gold/20 rounded-2xl shadow-2xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-aviva-gold/10">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-aviva-text">การแจ้งเตือน</h3>
@@ -142,7 +142,7 @@ export default function NotificationBell() {
               <button onClick={() => setOpen(false)}><X size={14} className="text-aviva-secondary" /></button>
             </div>
           </div>
-          <div className="max-h-96 overflow-y-auto divide-y divide-aviva-gold/5">
+          <div className="max-h-[min(384px,60vh)] overflow-y-auto divide-y divide-aviva-gold/5">
             {loading ? (
               [1,2,3].map(i => (
                 <div key={i} className="px-4 py-3 flex items-start gap-3 animate-pulse">
