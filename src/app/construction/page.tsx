@@ -14,6 +14,7 @@ import { createNotification } from "@/lib/notify";
 import { useCurrentUser } from "@/lib/user-context";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { calcSlaDueAt } from "@/lib/approval-matrix";
+import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
@@ -304,6 +305,8 @@ export default function ConstructionPage() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectingInst, setRejectingInst] = useState<Installment | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportAutoItems, setReportAutoItems] = useState<AutoReportItem[]>([]);
   const [newTaskInputs, setNewTaskInputs] = useState<Record<string, string>>({});
   const [customerPlots, setCustomerPlots] = useState<Set<number>>(new Set());
   const [showAI, setShowAI] = useState(false);
@@ -1327,6 +1330,44 @@ export default function ConstructionPage() {
       )}
 
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+
+      {/* Floating report button */}
+      <button
+        onClick={async () => {
+          const today = new Date().toISOString().split("T")[0];
+          const items: AutoReportItem[] = [];
+          const { data: insts } = await supabase
+            .from("contractor_installments")
+            .select("name,status,house_id")
+            .eq("project_id", PROJECT_ID)
+            .gte("updated_at", today)
+            .in("status", ["in_review", "approved", "paid"]);
+          (insts ?? []).forEach((i: { name: string; status: string }) => {
+            items.push({ category: "activity", description: `ส่งตรวจงวดงาน: ${i.name}` });
+          });
+          const { data: defs } = await supabase
+            .from("defects")
+            .select("description,severity")
+            .eq("project_id", PROJECT_ID)
+            .gte("created_at", today);
+          (defs ?? []).forEach((d: { description: string; severity: string }) => {
+            items.push({ category: "issue", description: `พบข้อบกพร่อง (${d.severity}): ${d.description}` });
+          });
+          setReportAutoItems(items);
+          setShowReportModal(true);
+        }}
+        className="fixed bottom-24 right-4 z-40 flex items-center gap-2 bg-aviva-gold text-aviva-bg font-bold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-aviva-gold/20 hover:bg-aviva-gold/90 active:scale-95 transition-all"
+      >
+        <ClipboardList size={14} /> ส่งรายงานวัน
+      </button>
+
+      <ReportSubmitModal
+        open={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        department="ฝ่ายก่อสร้าง"
+        autoItems={reportAutoItems}
+        onSubmitted={() => setToast({ msg: "ส่งรายงานประจำวันเรียบร้อยแล้ว", type: "success" })}
+      />
     </div>
   );
 }

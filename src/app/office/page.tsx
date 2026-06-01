@@ -22,6 +22,8 @@ import { createNotification } from "@/lib/notify";
 import Toast, { type ToastType } from "@/components/Toast";
 import { generateDocNumber } from "@/lib/doc-numbers";
 import { SLA_DAYS, calcSlaDueAt } from "@/lib/approval-matrix";
+import ReportSubmitModal, { type AutoReportItem } from "@/components/ReportSubmitModal";
+import { Send } from "lucide-react";
 
 type OfficeTab = "finance" | "accounting" | "marketing" | "hr" | "after-sales" | "approvals" | "materials" | "community" | "documents" | "audit";
 
@@ -3626,6 +3628,8 @@ function AuditLogContent() {
 export default function OfficePage() {
   const user = useCurrentUser();
   const [activeTab, setActiveTab] = useState<OfficeTab>("finance");
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportAutoItems, setReportAutoItems] = useState<AutoReportItem[]>([]);
 
   const isConstruction = user?.department === "ฝ่ายก่อสร้าง";
   const visibleTabs = TABS.filter(t => {
@@ -3682,6 +3686,43 @@ export default function OfficePage() {
       {activeTab === "community"   && <CommunityContent />}
       {activeTab === "documents"   && <DocumentsContent />}
       {activeTab === "audit"       && <AuditLogContent />}
+
+      {/* Floating report button */}
+      <button
+        onClick={async () => {
+          const todayStr = new Date().toISOString().split("T")[0];
+          const items: AutoReportItem[] = [];
+          const { data: docs } = await supabase
+            .from("documents")
+            .select("doc_number,title,status")
+            .eq("project_id", PROJECT_ID)
+            .gte("created_at", todayStr);
+          (docs ?? []).forEach((d: { doc_number: string; title: string; status: string }) => {
+            items.push({ category: "activity", description: `เอกสาร ${d.doc_number}: ${d.title} (${d.status})` });
+          });
+          const { data: pos } = await supabase
+            .from("purchase_orders")
+            .select("po_number,vendor_name,total_amount")
+            .eq("project_id", PROJECT_ID)
+            .gte("created_at", todayStr);
+          (pos ?? []).forEach((p: { po_number: string; vendor_name: string; total_amount: number }) => {
+            items.push({ category: "activity", description: `PO ${p.po_number}: ${p.vendor_name} ฿${Number(p.total_amount ?? 0).toLocaleString()}` });
+          });
+          setReportAutoItems(items);
+          setShowReportModal(true);
+        }}
+        className="fixed bottom-24 right-4 z-40 flex items-center gap-2 bg-aviva-gold text-aviva-bg font-bold text-xs px-4 py-2.5 rounded-2xl shadow-lg shadow-aviva-gold/20 hover:bg-aviva-gold/90 active:scale-95 transition-all"
+      >
+        <Send size={14} /> ส่งรายงานวัน
+      </button>
+
+      <ReportSubmitModal
+        open={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        department={user?.department ?? "ฝ่ายออฟฟิศ"}
+        autoItems={reportAutoItems}
+        onSubmitted={() => {}}
+      />
     </div>
   );
 }
