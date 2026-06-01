@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { ClipboardList, Plus, X, Camera, Send, Clock, CheckCircle, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { ClipboardList, Plus, X, Camera, Send, Clock, CheckCircle, AlertTriangle, ChevronDown, ChevronUp, MapPin } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
@@ -14,6 +14,13 @@ const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   plan:        { label: "แผนงานพรุ่งนี้",  color: "text-yellow-400" },
 };
 
+const WORK_LOCATIONS = [
+  "สำนักงาน",
+  "โครงการ AVIVA Private",
+  "เยี่ยมลูกค้า / นอกสถานที่",
+  "Work from Home",
+];
+
 interface WReport {
   id: string;
   user_email: string;
@@ -22,6 +29,7 @@ interface WReport {
   report_date: string;
   report_type: string;
   summary: string;
+  work_location: string;
   status: "draft" | "submitted" | "late";
   late_reason?: string;
   submitted_at?: string;
@@ -66,6 +74,7 @@ export default function ReportsPage() {
   const [newText, setNewText]         = useState("");
   const [newCat, setNewCat]           = useState("activity");
   const [summary, setSummary]         = useState("");
+  const [workLocation, setWorkLocation] = useState("สำนักงาน");
   const [uploading, setUploading]     = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [lateModal, setLateModal]     = useState(false);
@@ -153,6 +162,7 @@ export default function ReportsPage() {
         if (data) {
           setReport(data as WReport);
           setSummary(data.summary ?? "");
+          setWorkLocation(data.work_location ?? "สำนักงาน");
           const { data: its } = await supabase.from("work_report_items").select("*").eq("report_id", data.id).order("created_at");
           setItems((its ?? []) as WItem[]);
           const { data: atts } = await supabase.from("work_report_attachments").select("*").eq("report_id", data.id);
@@ -165,6 +175,7 @@ export default function ReportsPage() {
             report_date: today,
             report_type: "daily",
             summary: "",
+            work_location: "สำนักงาน",
             status: "draft",
           }).select().single();
           if (created) {
@@ -215,7 +226,7 @@ export default function ReportsPage() {
 
   async function saveSummary() {
     if (!report || isSubmitted) return;
-    await supabase.from("work_reports").update({ summary, updated_at: new Date().toISOString() }).eq("id", report.id);
+    await supabase.from("work_reports").update({ summary, work_location: workLocation, updated_at: new Date().toISOString() }).eq("id", report.id);
   }
 
   async function doSubmit(lateR?: string) {
@@ -224,7 +235,7 @@ export default function ReportsPage() {
     const now = new Date();
     const status: "submitted" | "late" = now.getHours() >= 18 ? "late" : "submitted";
     const { data } = await supabase.from("work_reports").update({
-      status, summary,
+      status, summary, work_location: workLocation,
       submitted_at: now.toISOString(),
       late_reason: lateR ?? null,
       updated_at: now.toISOString(),
@@ -258,6 +269,7 @@ export default function ReportsPage() {
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-4">
 
+        {/* Date + Status */}
         <GlassCard className="p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -277,6 +289,24 @@ export default function ReportsPage() {
           )}
         </GlassCard>
 
+        {/* Work Location */}
+        <GlassCard className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <MapPin size={13} className="text-aviva-gold" />
+            <p className="text-xs font-semibold text-aviva-secondary">สถานที่ปฏิบัติงาน</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {WORK_LOCATIONS.map(loc => (
+              <button key={loc} disabled={isSubmitted}
+                onClick={() => { setWorkLocation(loc); if (report && !isSubmitted) supabase.from("work_reports").update({ work_location: loc, updated_at: new Date().toISOString() }).eq("id", report.id); }}
+                className={`py-2 px-3 rounded-xl text-xs font-medium border transition-all ${workLocation === loc ? "bg-aviva-gold/15 border-aviva-gold text-aviva-gold" : "bg-aviva-bg/50 border-aviva-gold/20 text-aviva-secondary"} disabled:opacity-60`}>
+                {loc}
+              </button>
+            ))}
+          </div>
+        </GlassCard>
+
+        {/* Summary */}
         <GlassCard className="p-4">
           <p className="text-xs font-semibold text-aviva-secondary mb-2">สรุปภาพรวมวันนี้</p>
           <textarea value={summary} onChange={e => setSummary(e.target.value)} onBlur={saveSummary}
@@ -284,6 +314,7 @@ export default function ReportsPage() {
             className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-3 py-2 text-sm text-aviva-text resize-none focus:outline-none focus:border-aviva-gold/50 placeholder:text-aviva-secondary/30 disabled:opacity-50" />
         </GlassCard>
 
+        {/* Items */}
         <GlassCard className="p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold text-aviva-secondary">รายการกิจกรรมวันนี้</p>
@@ -333,6 +364,7 @@ export default function ReportsPage() {
           )}
         </GlassCard>
 
+        {/* Attachments */}
         <GlassCard className="p-4">
           <p className="text-xs font-semibold text-aviva-secondary mb-3">รูปภาพ / เอกสารแนบ</p>
           {attachments.length > 0 && (
@@ -353,6 +385,7 @@ export default function ReportsPage() {
           )}
         </GlassCard>
 
+        {/* Submit */}
         {!isSubmitted ? (
           <div className="space-y-2">
             {isLate && (
@@ -380,6 +413,7 @@ export default function ReportsPage() {
           </div>
         )}
 
+        {/* History */}
         <div>
           <button onClick={() => setShowHistory(h => !h)}
             className="w-full flex items-center justify-between py-2 text-sm font-semibold text-aviva-secondary">
@@ -406,6 +440,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {/* Late reason modal */}
       {lateModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-6 pb-10">

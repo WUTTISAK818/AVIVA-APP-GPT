@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Users, ClipboardList, CheckCircle, AlertTriangle, Clock, Eye, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, ClipboardList, CheckCircle, AlertTriangle, Clock, Eye, X, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { useCurrentUser } from "@/lib/user-context";
 import { supabase } from "@/lib/supabase";
 import GlassCard from "@/components/GlassCard";
@@ -20,6 +20,7 @@ interface WReport {
   report_date: string;
   status: string;
   summary: string;
+  work_location?: string;
   submitted_at?: string;
   late_reason?: string;
   acknowledged_by?: string;
@@ -137,6 +138,7 @@ export default function ReportsReviewPage() {
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-4">
 
+        {/* Date navigator */}
         <GlassCard className="p-3">
           <div className="flex items-center gap-2">
             <button onClick={() => setSelectedDate(addDays(selectedDate, -1))}
@@ -155,6 +157,7 @@ export default function ReportsReviewPage() {
           </div>
         </GlassCard>
 
+        {/* Stats */}
         <div className="grid grid-cols-3 gap-2">
           <GlassCard className="p-3 text-center">
             <CheckCircle size={15} className="text-green-400 mx-auto mb-1" />
@@ -173,6 +176,7 @@ export default function ReportsReviewPage() {
           </GlassCard>
         </div>
 
+        {/* List */}
         {loading ? (
           [1,2,3].map(i => <div key={i} className="h-16 rounded-2xl bg-aviva-card animate-pulse" />)
         ) : reports.length === 0 ? (
@@ -209,6 +213,7 @@ export default function ReportsReviewPage() {
         )}
       </div>
 
+      {/* Detail modal */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-aviva-card rounded-t-3xl p-5 pb-10 max-h-[88vh] flex flex-col">
@@ -226,6 +231,12 @@ export default function ReportsReviewPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3">
+              {selected.work_location && (
+                <div className="flex items-center gap-2 bg-aviva-gold/5 rounded-xl px-3 py-2 border border-aviva-gold/15">
+                  <MapPin size={12} className="text-aviva-gold flex-shrink-0" />
+                  <p className="text-xs text-aviva-text">{selected.work_location}</p>
+                </div>
+              )}
               {selected.summary && (
                 <div className="bg-aviva-bg/50 rounded-xl p-3">
                   <p className="text-[10px] text-aviva-secondary mb-1 uppercase tracking-wider">สรุปภาพรวม</p>
