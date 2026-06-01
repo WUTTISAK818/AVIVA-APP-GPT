@@ -8,11 +8,15 @@ import { ThemeProvider } from "@/lib/theme-context";
 
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
+const TARGET = process.env.NEXT_PUBLIC_TARGET;
+const BRAND = TARGET === "plus"
+  ? { title: "AVIVA Plus", description: "ระบบบริการลูกบ้าน AVIVA Private" }
+  : { title: "AVIVA ONE",  description: "ระบบบริหารจัดการ AVIVA ONE" };
+
 export const metadata: Metadata = {
-  title: "AVIVA ONE",
-  description: "ระบบบริหารจัดการ AVIVA ONE",
-  manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AVIVA ONE" },
+  title: BRAND.title,
+  description: BRAND.description,
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: BRAND.title },
   icons: { apple: "/apple-touch-icon.png", icon: "/icon-192.png" },
   other: { "mobile-web-app-capable": "yes" },
 };
