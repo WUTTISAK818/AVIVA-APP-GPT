@@ -100,8 +100,6 @@ function parseDocParts(source: string) {
   return { docNum, desc, submitter };
 }
 
-// ─── Detail Modal ────────────────────────────────────────────────────────────
-
 function FieldBox({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-aviva-bg/60 rounded-xl p-2.5">
@@ -309,8 +307,6 @@ function ApprovalDetailModal({ log, onClose }: { log: ApprovalLog; onClose: () =
   );
 }
 
-// ─── Registry Tab ────────────────────────────────────────────────────────────
-
 const PAGE_SIZE = 20;
 
 function RegistryContent() {
@@ -402,7 +398,6 @@ function RegistryContent() {
           </div>
         </div>
       </GlassCard>
-
       <div className="space-y-2">
         <div className="relative">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-aviva-secondary/50" />
@@ -425,7 +420,6 @@ function RegistryContent() {
           </select>
         </div>
       </div>
-
       {!loading && (
         <div className="grid grid-cols-4 gap-2">
           {[
@@ -441,7 +435,6 @@ function RegistryContent() {
           ))}
         </div>
       )}
-
       <div className="flex items-center justify-between">
         <p className="text-xs text-aviva-secondary">{loading ? "กำลังโหลด..." : `พบ ${filtered.length} รายการ`}</p>
         <button onClick={exportCSV} disabled={filtered.length === 0}
@@ -449,7 +442,6 @@ function RegistryContent() {
           <Download size={12} /> Export CSV
         </button>
       </div>
-
       <div className="space-y-2">
         {loading ? (
           [1,2,3,4,5].map(i => <div key={i} className="h-20 rounded-2xl bg-aviva-card/50 animate-pulse" />)
@@ -502,7 +494,6 @@ function RegistryContent() {
           );
         })}
       </div>
-
       {totalPages > 1 && (
         <div className="flex items-center justify-between gap-2">
           <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
@@ -520,8 +511,6 @@ function RegistryContent() {
   );
 }
 
-// ─── Approvals Tab ────────────────────────────────────────────────────────────
-
 type FilterTab = "pending" | "approved" | "rejected";
 
 function ApprovalsContent({ logs, loading, fetchLogs }: {
@@ -530,7 +519,6 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
   fetchLogs: () => void;
 }) {
   const user = useCurrentUser();
-  // Only admin/ceo/manager/director can approve — project_manager (dept head) cannot
   const canApprove = user && ["admin", "ceo", "manager", "director"].includes(user.role);
   const [activeTab, setActiveTab] = useState<FilterTab>("pending");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -571,8 +559,11 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
         if (e1) return e1.message;
         if (log.amount && log.amount > 0) {
           const desc = log.source_doc_index.split(" | ")[1] ?? "รายจ่ายที่อนุมัติ";
-          const { error: e2 } = await supabase.from("finance_transactions").insert({ project_id: "aaaaaaaa-0000-0000-0000-000000000001", transaction_type: "expense", amount: -log.amount, description: desc });
-          if (e2) return e2.message;
+          const { data: existing } = await supabase.from("finance_transactions").select("id").eq("description", desc).eq("amount", -Math.abs(log.amount)).limit(1);
+          if (!existing || existing.length === 0) {
+            const { error: e2 } = await supabase.from("finance_transactions").insert({ project_id: "aaaaaaaa-0000-0000-0000-000000000001", transaction_type: "expense", amount: -Math.abs(log.amount), description: desc, source_approval_id: log.approval_id });
+            if (e2) return e2.message;
+          }
         }
       } else if (log.workflow_type === "Leave_Request") {
         const { error } = await supabase.from("leave_requests").update({ status: "approved", approved_by: user?.email, approved_at: new Date().toISOString() }).eq("id", log.source_record_id);
@@ -638,12 +629,21 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
       setToast({ msg: `ผ่านชั้น 1 แล้ว — ส่งขออนุมัติชั้น 2 (ผู้บริหาร)`, type: "info" });
       setSaving(false); fetchLogs(); return;
     }
-    const { error } = await supabase.from("approval_logs").update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email }).eq("approval_id", id);
+    const { data: updatedRows, error } = await supabase.from("approval_logs")
+      .update({ action_taken: "Approved", action_timestamp: new Date().toISOString(), approver_email: user?.email })
+      .eq("approval_id", id).eq("action_taken", "Pending").select("approval_id");
     if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
+    if (!updatedRows || updatedRows.length === 0) {
+      setSaving(false); setToast({ msg: "รายการนี้ได้รับการดำเนินการไปแล้ว (race condition)", type: "info" }); fetchLogs(); return;
+    }
     if (log) {
       const cascadeError = await cascadeApprove(log);
+      if (cascadeError) {
+        await supabase.from("approval_logs").update({ action_taken: "Pending", action_timestamp: null, approver_email: null }).eq("approval_id", id);
+        setSaving(false); setToast({ msg: `อนุมัติล้มเหลว — อัปเดตสถานะต้นทางไม่สำเร็จ: ${cascadeError}`, type: "error" }); fetchLogs(); return;
+      }
       const dept = DEPT_BY_WORKFLOW[log.workflow_type] ?? "ระบบ";
-      setToast({ msg: cascadeError ? "อนุมัติแล้ว แต่อัปเดตสถานะต้นทางล้มเหลว" : `อนุมัติแล้ว — ${log.source_doc_index}`, type: cascadeError ? "warning" : "success" });
+      setToast({ msg: `อนุมัติแล้ว — ${log.source_doc_index}`, type: "success" });
       await createNotification({ type: "success", title: `อนุมัติแล้ว — ${log.source_doc_index}`, message: `${WORKFLOW_LABEL[log.workflow_type] ?? log.workflow_type}${log.amount ? ` ฿${Number(log.amount).toLocaleString()}` : ""} ได้รับการอนุมัติแล้ว`, from_dept: dept, to_dept: dept });
     }
     setSaving(false); fetchLogs();
@@ -664,8 +664,13 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
       fetchLogs();
       return;
     }
-    const { error } = await supabase.from("approval_logs").update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: rejectComment }).eq("approval_id", id);
+    const { data: rejectedRows, error } = await supabase.from("approval_logs")
+      .update({ action_taken: "Rejected", action_timestamp: new Date().toISOString(), approver_email: user?.email, rejection_comment: rejectComment })
+      .eq("approval_id", id).eq("action_taken", "Pending").select("approval_id");
     if (error) { setSaving(false); setToast({ msg: "เกิดข้อผิดพลาด: " + error.message, type: "error" }); return; }
+    if (!rejectedRows || rejectedRows.length === 0) {
+      setSaving(false); setToast({ msg: "รายการนี้ได้รับการดำเนินการไปแล้ว", type: "info" }); fetchLogs(); return;
+    }
     if (log) {
       const cascadeErr = await cascadeReject(log);
       const dept = DEPT_BY_WORKFLOW[log.workflow_type] ?? "ระบบ";
@@ -815,8 +820,6 @@ function ApprovalsContent({ logs, loading, fetchLogs }: {
     </div>
   );
 }
-
-// ─── Installment Report Viewer ────────────────────────────────────────────────
 
 interface HouseSimple {
   id: string;
@@ -1000,8 +1003,6 @@ function InstallmentViewer() {
     </div>
   );
 }
-
-// ─── Page Shell ───────────────────────────────────────────────────────────────
 
 type MainTab = "approvals" | "registry" | "reports";
 
