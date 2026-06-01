@@ -17,7 +17,7 @@ import { calcSlaDueAt } from "@/lib/approval-matrix";
 
 const PROJECT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
-type HouseStatus = "complete" | "on-track" | "delayed";
+type HouseStatus = "complete" | "on-track" | "delayed" | "reserved" | "available";
 type FilterStatus = "all" | "complete" | "building" | "on-track" | "delayed";
 type Tab = "reports" | "defects";
 type Part = "inspect" | "daily";
@@ -110,10 +110,12 @@ interface InstTask {
   notes: string | null;
 }
 
-const statusConfig = {
-  complete: { label: "เสร็จแล้ว", icon: CheckCircle, color: "text-green-400", bg: "bg-green-400/10 border-green-400/20" },
-  "on-track": { label: "ตามแผน", icon: Clock, color: "text-blue-400", bg: "bg-blue-400/10 border-blue-400/20" },
-  delayed: { label: "ล่าช้า", icon: AlertTriangle, color: "text-red-400", bg: "bg-red-400/10 border-red-400/20" },
+const statusConfig: Record<HouseStatus, { label: string; icon: typeof CheckCircle; color: string; bg: string }> = {
+  complete:  { label: "เสร็จแล้ว",       icon: CheckCircle,    color: "text-green-400",  bg: "bg-green-400/10 border-green-400/20" },
+  "on-track":{ label: "ตามแผน",           icon: Clock,          color: "text-blue-400",   bg: "bg-blue-400/10 border-blue-400/20" },
+  delayed:   { label: "ล่าช้า",           icon: AlertTriangle,  color: "text-red-400",    bg: "bg-red-400/10 border-red-400/20" },
+  reserved:  { label: "จองแล้ว (CRM)",   icon: CheckCircle,    color: "text-aviva-gold", bg: "bg-aviva-gold/10 border-aviva-gold/20" },
+  available: { label: "ว่าง (CRM)",      icon: CheckCircle,    color: "text-teal-400",   bg: "bg-teal-400/10 border-teal-400/20" },
 };
 
 const instStatusConfig: Record<string, { label: string; color: string }> = {
@@ -299,6 +301,9 @@ export default function ConstructionPage() {
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
   const [uploadingTask, setUploadingTask] = useState<string | null>(null);
   const [confirmInst, setConfirmInst] = useState<Installment | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectingInst, setRejectingInst] = useState<Installment | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const [newTaskInputs, setNewTaskInputs] = useState<Record<string, string>>({});
   const [customerPlots, setCustomerPlots] = useState<Set<number>>(new Set());
   const [showAI, setShowAI] = useState(false);
@@ -696,7 +701,10 @@ export default function ConstructionPage() {
   const updateDefectStatus = async (id: string, newStatus: string) => {
     const update: Record<string, string> = { status: newStatus };
     if (newStatus === "Resolved") update.resolved_at = new Date().toISOString();
-    await supabase.from("defects").update(update).eq("defect_id", id);
+    const { error } = await supabase.from("defects").update(update).eq("defect_id", id);
+    if (error) { setToast({ msg: "อัปเดตสถานะไม่สำเร็จ: " + error.message, type: "error" }); return; }
+    setToast({ msg: `อัปเดตข้อบกพร่องเป็น "${newStatus}" แล้ว`, type: "success" });
+    await createNotification({ type: "info", title: `ข้อบกพร่อง — ${newStatus}`, message: `สถานะข้อบกพร่องถูกเปลี่ยนเป็น ${newStatus}`, from_dept: "ฝ่ายก่อสร้าง", to_dept: "ฝ่ายก่อสร้าง" });
     fetchData();
   };
 
@@ -909,8 +917,10 @@ export default function ConstructionPage() {
                                   onBlur={async e => {
                                     const v = Number(e.target.value);
                                     if (!isNaN(v)) {
-                                      await supabase.from("contractor_installments").update({ amount: v }).eq("id", inst.id);
+                                      const { error } = await supabase.from("contractor_installments").update({ amount: v }).eq("id", inst.id);
+                                      if (error) { setToast({ msg: "บันทึกมูลค่าไม่สำเร็จ: " + error.message, type: "error" }); return; }
                                       setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, amount: v } : i));
+                                      setToast({ msg: `อัปเดตมูลค่างวด ฿${v.toLocaleString()} แล้ว`, type: "success" });
                                     }
                                   }}
                                   className="flex-1 bg-aviva-bg border border-aviva-gold/20 rounded-lg px-2 py-1 text-xs text-aviva-text outline-none" />
@@ -919,7 +929,9 @@ export default function ConstructionPage() {
                             <button
                               onClick={() => {
                                 const url = `${window.location.origin}/inspection?id=${inst.id}`;
-                                navigator.clipboard.writeText(url);
+                                navigator.clipboard.writeText(url)
+                                  .then(() => setToast({ msg: "คัดลอกลิงก์แล้ว", type: "success" }))
+                                  .catch(() => setToast({ msg: "คัดลอกลิงก์ไม่สำเร็จ", type: "error" }));
                               }}
                               className="w-full py-1.5 text-[11px] text-aviva-secondary border border-aviva-gold/20 rounded-xl bg-aviva-bg/50 hover:border-aviva-gold/40 flex items-center justify-center gap-1.5"
                             >
@@ -978,7 +990,7 @@ export default function ConstructionPage() {
                                 {inst.status === "in_review" && user?.isManager ? (
                                   <div className="flex gap-2">
                                     <button onClick={() => doAdvanceInst(inst)} className="flex-1 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl text-xs font-medium">✓ อนุมัติ</button>
-                                    <button onClick={() => { const reason = window.prompt("ระบุเหตุผลที่ปฏิเสธ:"); if (reason !== null) rejectInstallment(inst, reason); }} className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium">✗ ปฏิเสธ</button>
+                                    <button onClick={() => { setRejectingInst(inst); setRejectReason(""); setShowRejectModal(true); }} className="flex-1 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-medium">✗ ปฏิเสธ</button>
                                   </div>
                                 ) : inst.status === "in_review" && !user?.isManager ? (
                                   <div className="w-full py-2 bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-xl text-xs text-center">รออนุมัติจากผู้จัดการ</div>
@@ -1274,6 +1286,29 @@ export default function ConstructionPage() {
               </div>
             </div>
             <button onClick={handleSaveHouse} disabled={saving} className="w-full bg-aviva-gold text-aviva-bg font-bold py-3.5 rounded-2xl text-sm disabled:opacity-50">{saving ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}</button>
+          </div>
+        </div>
+      )}
+
+      {showRejectModal && rejectingInst && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm bg-aviva-card rounded-2xl p-6 space-y-4">
+            <h2 className="text-base font-bold text-aviva-text">ระบุเหตุผลที่ปฏิเสธ</h2>
+            <p className="text-xs text-aviva-secondary">{rejectingInst.name}</p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="เหตุผลที่ปฏิเสธ..."
+              rows={3}
+              className="w-full bg-aviva-bg border border-aviva-gold/20 rounded-xl px-4 py-3 text-sm text-aviva-text placeholder:text-aviva-secondary/40 outline-none focus:border-aviva-gold/60 resize-none"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => { setShowRejectModal(false); setRejectingInst(null); setRejectReason(""); }}
+                className="flex-1 py-3 rounded-xl border border-aviva-gold/20 text-aviva-secondary text-sm">ยกเลิก</button>
+              <button onClick={() => { rejectInstallment(rejectingInst, rejectReason); setShowRejectModal(false); setRejectingInst(null); setRejectReason(""); }}
+                disabled={!rejectReason.trim()}
+                className="flex-1 py-3 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 font-bold text-sm disabled:opacity-50">ยืนยันปฏิเสธ</button>
+            </div>
           </div>
         </div>
       )}
